@@ -17,6 +17,14 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Supabase credentials are injected from CI secrets / local gradle properties.
+        // Placeholders keep the app buildable without secrets; Supabase.isConfigured
+        // reports false and the UI degrades to local-only mode.
+        val supabaseUrl = (project.findProperty("SUPABASE_URL") as String?).orEmpty()
+        val supabaseKey = (project.findProperty("SUPABASE_ANON_KEY") as String?).orEmpty()
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseKey\"")
     }
 
     buildTypes {
@@ -46,6 +54,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -66,6 +75,13 @@ dependencies {
 
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)
+
+    // Supabase backend
+    implementation(libs.supabase.core)
+    implementation(libs.supabase.auth)
+    implementation(libs.supabase.postgrest)
+    implementation(libs.supabase.realtime)
+    implementation(libs.supabase.storage)
 
     testImplementation(libs.junit)
 
