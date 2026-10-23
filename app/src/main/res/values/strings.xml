@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ChatNook</string>
+    <string name="home_placeholder">Your server, your rules. Foundation build — chat lands next.</string>
+</resources>
