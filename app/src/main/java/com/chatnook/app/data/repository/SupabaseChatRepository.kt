@@ -59,6 +59,8 @@ class SupabaseChatRepository : ChatRepository {
             createdAt = System.currentTimeMillis(),
         )
 
+        // shortcut: writes go to Supabase, reads stay in messageCache, so other devices
+        // don't see their own inserts. Upgrade when auth + Realtime land.
         val client = Supabase.clientOrNull()
         if (client != null) {
             client.from("messages").insert(
