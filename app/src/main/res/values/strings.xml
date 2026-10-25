@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">ChatNook</string>
-    <string name="home_placeholder">Your server, your rules. Foundation build — chat lands next.</string>
+    <string name="channels_subtitle">Channels</string>
+    <string name="channels_empty">No channels yet</string>
+    <string name="chat_empty">No messages yet. Say hi.</string>
+    <string name="chat_input_hint">Message</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_back">Back</string>
 </resources>
