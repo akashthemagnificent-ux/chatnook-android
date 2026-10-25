@@ -21,7 +21,23 @@ import kotlinx.coroutines.flow.map
 class SupabaseChatRepository : ChatRepository {
 
     private val messageCache = MutableStateFlow<List<ChatMessage>>(emptyList())
-    private val channelCache = MutableStateFlow<List<ChatChannel>>(emptyList())
+
+    // Offline builds still need something to open, otherwise the app is an empty shell.
+    private val defaultChannels = listOf(
+        ChatChannel(
+            channelId = "general",
+            name = "general",
+            description = "Prototype channel",
+            isGroup = true,
+            lastMessage = null,
+            unreadCount = 0,
+            members = emptyList(),
+        ),
+    )
+
+    private val channelCache = MutableStateFlow(
+        if (Supabase.isConfigured) emptyList() else defaultChannels,
+    )
 
     override fun getChannelMessages(channelId: String): Flow<List<ChatMessage>> =
         messageCache.map { messages ->
