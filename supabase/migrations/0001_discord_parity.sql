@@ -344,18 +344,18 @@ as $$
   -- tighten to a role check when role management lands.
 declare
   me uuid := auth.uid();
-  code text;
+  new_code text;
 begin
   if me is null then raise exception 'not authenticated'; end if;
   if not public.is_guild_member(gid, me) then raise exception 'not a guild member'; end if;
 
   loop
-    code := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
-    exit when not exists (select 1 from public.invites i where i.code = code);
+    new_code := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
+    exit when not exists (select 1 from public.invites i where i.code = new_code);
   end loop;
 
-  insert into public.invites (code, guild_id, created_by) values (code, gid, me);
-  return code;
+  insert into public.invites (code, guild_id, created_by) values (new_code, gid, me);
+  return new_code;
 end;
 $$;
 
