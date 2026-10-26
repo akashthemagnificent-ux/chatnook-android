@@ -22,8 +22,17 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Deep link for Supabase magic-link / password recovery.
+                 autoVerify is https-only, so it must not be set on a custom scheme. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="@string/supabase_oauth_scheme"
+                    android:host="@string/supabase_oauth_host" />
+            </intent-filter>
         </activity>
-
     </application>
 
 </manifest>

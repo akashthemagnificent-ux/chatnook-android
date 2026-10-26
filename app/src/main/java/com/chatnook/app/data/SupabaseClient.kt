@@ -3,6 +3,7 @@ package com.chatnook.app.data
 import com.chatnook.app.BuildConfig
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.FlowType
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.realtime.Realtime
@@ -15,6 +16,11 @@ import io.github.jan.supabase.storage.Storage
  * so no secrets live in source control.
  */
 object Supabase {
+
+    /** Deep-link scheme/host used by magic-link sign-in. Must also be registered in
+     *  the Supabase dashboard under Authentication > URL Configuration > Redirect URLs. */
+    const val AUTH_SCHEME = "chatnook"
+    const val AUTH_HOST = "auth"
 
     /** True when the build provided real credentials instead of the placeholders. */
     val isConfigured: Boolean
@@ -30,7 +36,12 @@ object Supabase {
             supabaseUrl = BuildConfig.SUPABASE_URL,
             supabaseKey = BuildConfig.SUPABASE_ANON_KEY,
         ) {
-            install(Auth)
+            install(Auth) {
+                // PKCE + deep link so magic links return into the app.
+                scheme = AUTH_SCHEME
+                host = AUTH_HOST
+                flowType = FlowType.PKCE
+            }
             install(Postgrest)
             install(Realtime)
             install(Storage)

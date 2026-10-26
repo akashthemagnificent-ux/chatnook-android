@@ -1,8 +1,20 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
+
+// CI passes -PSUPABASE_*, local dev keeps them in local.properties (gitignored).
+// Gradle does not load local.properties on its own, hence the explicit read.
+val localProps = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use(::load)
+}
+
+fun credential(name: String): String =
+    (project.findProperty(name) as String?) ?: localProps.getProperty(name).orEmpty()
 
 android {
     namespace = "com.chatnook.app"
@@ -21,8 +33,8 @@ android {
         // Supabase credentials are injected from CI secrets / local gradle properties.
         // Placeholders keep the app buildable without secrets; Supabase.isConfigured
         // reports false and the UI degrades to local-only mode.
-        val supabaseUrl = (project.findProperty("SUPABASE_URL") as String?).orEmpty()
-        val supabaseKey = (project.findProperty("SUPABASE_ANON_KEY") as String?).orEmpty()
+        val supabaseUrl = credential("SUPABASE_URL")
+        val supabaseKey = credential("SUPABASE_ANON_KEY")
         buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseKey\"")
     }

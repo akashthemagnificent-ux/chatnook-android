@@ -1,10 +1,77 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">ChatNook</string>
-    <string name="channels_subtitle">Channels</string>
-    <string name="channels_empty">No channels yet</string>
-    <string name="chat_empty">No messages yet. Say hi.</string>
-    <string name="chat_input_hint">Message</string>
+
+    <!-- Auth -->
+    <string name="auth_welcome_back">Welcome back</string>
+    <string name="auth_create_account">Create account</string>
+    <string name="auth_email_hint">Email</string>
+    <string name="auth_password_hint">Password</string>
+    <string name="auth_confirm_password_hint">Confirm password</string>
+    <string name="auth_sign_in">Sign in</string>
+    <string name="auth_sign_up">Sign up</string>
+    <string name="auth_sign_up_alt">Don\'t have an account? Sign up</string>
+    <string name="auth_sign_in_alt">Already have an account? Sign in</string>
+    <string name="auth_anonymous">Continue anonymously</string>
+    <string name="auth_magic_link">Send magic link</string>
+    <string name="auth_magic_link_desc">We\'ll email you a sign-in link</string>
+    <string name="auth_anonymous_desc">Skip signup, join as a guest</string>
+    <string name="auth_or">or</string>
+
+    <!-- Deep-link scheme/host for magic links; must match Supabase > Auth > URL Config -->
+    <string name="supabase_oauth_scheme">chatnook</string>
+    <string name="supabase_oauth_host">auth</string>
+
+    <!-- Chat -->
+    <string name="chat_empty">No messages yet. Send the first one!</string>
+    <string name="chat_input_hint">Message #general</string>
     <string name="chat_send">Send</string>
     <string name="chat_back">Back</string>
+    <string name="chat_edited">(edited)</string>
+    <string name="chat_replying_to">Replying to %1$s</string>
+    <string name="chat_cancel_reply">Cancel reply</string>
+    <string name="chat_action_reply">Reply</string>
+    <string name="chat_action_edit">Edit</string>
+    <string name="chat_action_delete">Delete</string>
+    <string name="chat_edit_title">Edit message</string>
+    <string name="chat_deleted">Message deleted</string>
+
+    <!-- Channels -->
+    <string name="channels_subtitle">Your channels</string>
+    <string name="channels_empty">No channels yet</string>
+    <string name="channels_add">Channel</string>
+    <string name="channels_new_channel">New channel</string>
+    <string name="channels_channel_name">Channel name</string>
+    <string name="channels_new_server">Create server</string>
+    <string name="channels_server_name">Server name</string>
+    <string name="channels_join_server">Join server</string>
+    <string name="channels_invite_code">Invite code</string>
+    <string name="channels_invite">Create invite</string>
+    <string name="channels_add_emoji">Upload emoji</string>
+    <string name="channels_emoji_name">Emoji name</string>
+
+    <!-- Profile / Nitro cosmetics -->
+    <string name="profile_title">Profile</string>
+    <string name="profile_display_name">Display name</string>
+    <string name="profile_custom_status">Custom status</string>
+    <string name="profile_accent">Accent colour</string>
+    <string name="profile_theme">Profile theme</string>
+    <string name="profile_badges">Badges</string>
+    <string name="profile_banner">Change banner</string>
+    <string name="profile_avatar">Change avatar</string>
+    <string name="profile_save">Save profile</string>
+    <string name="profile_sign_out">Sign out</string>
+    <string name="profile_theme_none">None</string>
+    <string name="profile_theme_sunset">Sunset</string>
+    <string name="profile_theme_ocean">Ocean</string>
+    <string name="profile_theme_forest">Forest</string>
+    <string name="profile_theme_neon">Neon</string>
+    <string name="profile_badge_early">Early</string>
+    <string name="profile_badge_nitro">Nitro</string>
+    <string name="profile_badge_staff">Staff</string>
+
+    <!-- Shared actions -->
+    <string name="action_create">Create</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_ok">OK</string>
 </resources>

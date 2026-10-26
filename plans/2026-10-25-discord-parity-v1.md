@@ -203,9 +203,14 @@ port the *design*, not the code):
 ## 10. Schema migration history
 
 - [x] v0 `supabase/schema.sql` — profiles, channels, messages (placeholder, superseded)
-- [ ] v1 `supabase/migrations/0001_discord_parity.sql` — full model above
-- [ ] v2 storage buckets + policies
-- [ ] v3 realtime publication for messages/message_reactions/guild_members
+- [x] v1 `supabase/migrations/0001_discord_parity.sql` — full model above (written; **not applied to the live project yet**)
+- [x] v2 `supabase/migrations/0002_guilds_storage_realtime.sql` — create_guild RPC, buckets + policies, replica identity, publication (written; **not applied**)
+- [x] v3 realtime publication for messages/reactions/channels/guild_members — folded into v2
+
+> `local.properties` holds `SUPABASE_URL` + `SUPABASE_ANON_KEY`; `app/build.gradle.kts`
+> reads them so local builds get real credentials, and CI passes `-P` flags from secrets.
+> Every table currently answers 404 on the live project: migrations must be applied
+> once by the human (Supabase SQL editor, in order), after which the app works as built.
 
 ---
 
@@ -226,4 +231,5 @@ port the *design*, not the code):
 
 | Date | Milestone | Evidence |
 |---|---|---|
-| — | — | — |
+| 2026-10-26 | M1 auth (3 methods), M2 guild/channel shell, M3 messaging + realtime, M6 cosmetics, custom emoji | `./gradlew :app:assembleRelease :app:testReleaseUnitTest` green locally (15m, offline); 12 unit tests, 0 failures; APK 9.4 MB |
+| 2026-10-26 | Live backend probes | REST `/rest/v1/<table>` → 404 for every table; `/auth/v1/settings` → `anonymous: false`, `autoconfirm: false`. Blockers B1–B4 still stand; schema unapplied |

@@ -1,88 +1,57 @@
 package com.chatnook.app.domain.repository
 
-import com.chatnook.app.domain.model.ChatMessage
-import com.chatnook.app.domain.model.ChatUser
 import com.chatnook.app.domain.model.ChatChannel
+import com.chatnook.app.domain.model.ChatMessage
+import com.chatnook.app.domain.model.CustomEmoji
+import com.chatnook.app.domain.model.Guild
+import com.chatnook.app.domain.model.Profile
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Repository interface for chat operations.
- * Defines the contract for all chat data access.
+ * All chat data access. Every [Flow] emits a snapshot immediately and then every
+ * later change pushed by Supabase Realtime, so the UI never polls.
  */
 interface ChatRepository {
-    /**
-     * Gets all messages for a specific channel.
-     * 
-     * @param channelId The channel ID
-     * @return Flow of messages for the channel
-     */
+
+    /** Servers the user is a member of. */
+    fun getGuilds(): Flow<List<Guild>>
+
+    /** Text channels inside a guild, ordered by position. */
+    fun getChannels(guildId: String): Flow<List<ChatChannel>>
+
+    /** Newest page of a channel, oldest-first, kept live via Realtime. */
     fun getChannelMessages(channelId: String): Flow<List<ChatMessage>>
 
-    /**
-     * Sends a new message to a channel.
-     * 
-     * @param channelId The target channel ID
-     * @param senderId The sender user ID
-     * @param content The message content
-     * @param messageType The message type
-     * @return The sent message
-     */
-    suspend fun sendMessage(
-        channelId: String,
-        senderId: String,
-        content: String,
-        messageType: ChatMessage.MessageType = ChatMessage.MessageType.text
-    ): ChatMessage
+    suspend fun sendMessage(channelId: String, content: String, replyToId: String? = null): ChatMessage
 
-    /**
-     * Gets all channels for the current user.
-     * 
-     * @param userId The user ID
-     * @return Flow of channels for the user
-     */
-    fun getUserChannels(userId: String): Flow<List<ChatChannel>>
+    suspend fun editMessage(messageId: String, content: String)
 
-    /**
-     * Creates a new channel.
-     * 
-     * @param channel The channel to create
-     * @param creatorId The creator user ID
-     * @return The created channel
-     */
-    suspend fun createChannel(
-        channel: ChatChannel,
-        creatorId: String
-    ): ChatChannel
+    suspend fun deleteMessage(messageId: String)
 
-    /**
-     * Gets user profile information.
-     * 
-     * @param userId The user ID
-     * @return The user profile
-     */
-    suspend fun getUserProfile(userId: String): ChatUser
+    /** Adds the caller's reaction, or removes it when it already exists. */
+    suspend fun toggleReaction(messageId: String, emoji: String)
 
-    /**
-     * Updates user profile.
-     * 
-     * @param userId The user ID
-     * @param user The updated user data
-     */
-    suspend fun updateUserProfile(userId: String, user: ChatUser)
+    suspend fun createGuild(name: String): Guild
 
-    /**
-     * Subscribe to real-time updates for a channel.
-     * 
-     * @param channelId The channel ID
-     * @param onNewMessage Callback for new messages
-     */
-    fun subscribeToChannel(channelId: String, onNewMessage: (ChatMessage) -> Unit)
+    suspend fun createChannel(guildId: String, name: String, topic: String?): ChatChannel
 
-    /**
-     * Uploads an image to storage.
-     * 
-     * @param fileBytes The image file bytes
-     * @return The storage URL
-     */
-    suspend fun uploadImage(fileBytes: ByteArray): String
+    suspend fun createInvite(guildId: String): String
+
+    /** Redeems an invite code; returns the guild id the user joined. */
+    suspend fun joinGuild(code: String): String
+
+    suspend fun getProfile(userId: String): Profile?
+
+    /** Guild-uploaded emoji, readable by members. */
+    fun getCustomEmojis(guildId: String): Flow<List<CustomEmoji>>
+
+    /** Registers an already-uploaded emoji file; owner-only, enforced by RLS. */
+    suspend fun createCustomEmoji(guildId: String, name: String, url: String): CustomEmoji
+
+    fun getMyProfile(): Flow<Profile?>
+
+    suspend fun updateProfile(profile: Profile)
+
+    /** Uploads bytes to a public bucket and returns the public URL. */
+    suspend fun uploadImage(bucket: String, bytes: ByteArray, extension: String): String
 }

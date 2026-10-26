@@ -1,5 +1,6 @@
 package com.chatnook.app.ui.theme
 
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
 // Discord-inspired palette. Kept flat on purpose: every value is a token the
@@ -30,4 +31,15 @@ object ChatNookColors {
     val LightTextPrimary = Color(0xFF060607)
     val LightTextSecondary = Color(0xFF4E5058)
     val LightOutline = Color(0xFFDBDDE1)
+
+    // Discord login gradient — used as the auth screen background.
+    val ChatNookGradient = Brush.verticalGradient(
+        colors = listOf(
+            Color(0xFF5865F2), // Blurple
+            Color(0xFF4752C4), // BlurpleDark
+            Color(0xFF363F6E), // deeper
+        ),
+        startY = 0f,
+        endY = Float.POSITIVE_INFINITY,
+    )
 }
