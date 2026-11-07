@@ -20,6 +20,7 @@ import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
 import io.github.jan.supabase.realtime.realtime
 import io.github.jan.supabase.storage.storage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -68,9 +69,14 @@ class SupabaseChatRepository : ChatRepository {
      * PostgREST 300 (ambiguous embed) once looked like an RLS outage for hours.
      */
     private suspend fun <T> loadOr(label: String, fallback: T, block: suspend () -> T): T =
-        runCatching { block() }
-            .onFailure { Log.w("ChatNookRepo", "$label failed", it) }
-            .getOrDefault(fallback)
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w("ChatNookRepo", "$label failed", e)
+            fallback
+        }
 
     // ------------------------------------------------------------------ guilds
 

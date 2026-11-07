@@ -44,7 +44,9 @@ object Supabase {
                     addInterceptor { chain ->
                         val request = chain.request()
                         val response = chain.proceed(request)
-                        val body = response.peekBody(2048).string().take(200)
+                        // Realtime upgrades to a websocket, whose body cannot be peeked.
+                        val body = runCatching { response.peekBody(2048).string().take(200) }
+                            .getOrDefault("<stream>")
                         Log.d(
                             "ChatNookHttp",
                             "${request.method} ${request.url.encodedPath} -> ${response.code} $body",

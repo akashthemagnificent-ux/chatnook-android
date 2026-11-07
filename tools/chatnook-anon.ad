@@ -1,0 +1,5 @@
+context platform=android device="atd35" kind=emulator theme=unknown
+open "com.chatnook.app"
+wait "label=\"Continue anonymously\"" 20000
+press "label=\"Continue anonymously\""
+wait "label=\"Join server\"" 20000

@@ -1,0 +1,6 @@
+context platform=android device="atd35" kind=emulator theme=unknown
+open "com.chatnook.app"
+wait "id=\"channel_general\"" 30000
+press "id=\"channel_general\""
+wait "id=\"chat_input\"" 15000
+wait "text=\"smoke hello ${RUN}\"" 15000
