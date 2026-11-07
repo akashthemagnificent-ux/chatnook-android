@@ -23,7 +23,7 @@
 
     <!-- Chat -->
     <string name="chat_empty">No messages yet. Send the first one!</string>
-    <string name="chat_input_hint">Message #general</string>
+    <string name="chat_input_hint">Message #%1$s</string>
     <string name="chat_send">Send</string>
     <string name="chat_back">Back</string>
     <string name="chat_edited">(edited)</string>
@@ -34,6 +34,13 @@
     <string name="chat_action_delete">Delete</string>
     <string name="chat_edit_title">Edit message</string>
     <string name="chat_deleted">Message deleted</string>
+    <string name="chat_today">Today</string>
+    <string name="chat_yesterday">Yesterday</string>
+    <string name="chat_new_messages">%1$d new</string>
+    <string name="chat_failed_retry">Failed to send · Tap to retry</string>
+    <string name="chat_delete_title">Delete message?</string>
+    <string name="chat_delete_body">This cannot be undone.</string>
+    <string name="chat_delete_confirm">Delete</string>
 
     <!-- Channels -->
     <string name="channels_subtitle">Your channels</string>

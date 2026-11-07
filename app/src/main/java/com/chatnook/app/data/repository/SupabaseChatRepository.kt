@@ -264,13 +264,44 @@ class SupabaseChatRepository : ChatRepository {
         }
     }
 
+    override suspend fun loadOlderMessages(
+        channelId: String,
+        before: ChatMessage,
+        limit: Int,
+    ): List<ChatMessage> {
+        val client = Supabase.clientOrNull() ?: return emptyList()
+        val iso = before.createdAtIso ?: return emptyList()
+        return client.from("messages")
+            .select(Columns.raw(MESSAGE_COLUMNS)) {
+                filter {
+                    eq("channel_id", channelId)
+                    // Keyset on (created_at, id): the index is (channel_id, created_at desc, id desc).
+                    or {
+                        lt("created_at", iso)
+                        and {
+                            eq("created_at", iso)
+                            lt("id", before.messageId)
+                        }
+                    }
+                }
+                order("created_at", Order.DESCENDING)
+                order("id", Order.DESCENDING)
+                limit(limit.toLong())
+            }
+            .decodeList<JsonObject>()
+            .map(ChatMessage::fromJson)
+            .sortedBy { it.createdAt }
+    }
+
     override suspend fun sendMessage(
         channelId: String,
         content: String,
         replyToId: String?,
+        messageId: String,
     ): ChatMessage {
         val client = Supabase.clientOrNull() ?: error("Supabase not configured")
         val payload = buildJsonObject {
+            put("id", messageId)
             put("channel_id", channelId)
             put("author_id", userId())
             put("content", content)

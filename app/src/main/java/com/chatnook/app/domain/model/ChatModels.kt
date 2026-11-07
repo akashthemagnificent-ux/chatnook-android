@@ -47,6 +47,8 @@ data class ChatMessage(
     val content: String,
     val messageType: MessageType,
     val createdAt: Long,
+    /** Raw server timestamp; keyset paging needs the exact string, not millis. */
+    val createdAtIso: String? = null,
     val editedAt: Long? = null,
     val replyToId: String? = null,
     val senderName: String? = null,
@@ -55,8 +57,12 @@ data class ChatMessage(
     /** Set when this message quotes another one; lets the chip render without a second query. */
     val replyToContent: String? = null,
     val replyToAuthorId: String? = null,
+    /** Local delivery state; always [SendState.Sent] for rows that came from the server. */
+    val sendState: SendState = SendState.Sent,
 ) {
     enum class MessageType { text, image, system, notification }
+
+    enum class SendState { Pending, Sent, Failed }
 
     val isDeleted: Boolean get() = content.isEmpty() && messageType != MessageType.system
 
@@ -74,6 +80,7 @@ data class ChatMessage(
                     else -> MessageType.text
                 },
                 createdAt = json.millis("created_at"),
+                createdAtIso = json.str("created_at"),
                 editedAt = json.str("edited_at")?.let { json.millis("edited_at") },
                 replyToId = json.str("reply_to_id"),
                 senderName = author?.str("display_name")?.takeIf { it.isNotBlank() }
