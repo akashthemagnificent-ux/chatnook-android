@@ -15,11 +15,17 @@ sealed interface MarkdownSpan {
     data class CodeBlock(override val text: String) : MarkdownSpan
     data class Link(override val text: String, val url: String) : MarkdownSpan
     data class Mention(override val text: String) : MarkdownSpan
+
+    /** `:name:` of a guild emoji; [url] is resolved by the caller so parsing stays pure. */
+    data class Emoji(val name: String, val url: String) : MarkdownSpan {
+        override val text: String get() = ":$name:"
+    }
 }
 
 private val MENTION = Regex("@[a-z0-9._-]{2,32}", RegexOption.IGNORE_CASE)
+private val EMOJI_NAME = Regex("[a-z0-9_]{2,32}")
 
-fun parseMarkdown(input: String): List<MarkdownSpan> {
+fun parseMarkdown(input: String, emojis: Map<String, String> = emptyMap()): List<MarkdownSpan> {
     if (input.isEmpty()) return emptyList()
     val out = ArrayList<MarkdownSpan>()
     val lines = input.split("\n")
@@ -29,7 +35,7 @@ fun parseMarkdown(input: String): List<MarkdownSpan> {
 
     fun flushProse() {
         if (prose.isNotEmpty()) {
-            out += parseInline(prose.toString())
+            out += parseInline(prose.toString(), emojis)
             prose.clear()
         }
     }
@@ -59,7 +65,7 @@ fun parseMarkdown(input: String): List<MarkdownSpan> {
     return out
 }
 
-private fun parseInline(source: String): List<MarkdownSpan> {
+private fun parseInline(source: String, emojis: Map<String, String>): List<MarkdownSpan> {
     val out = ArrayList<MarkdownSpan>()
     val buffer = StringBuilder()
     var i = 0
@@ -135,6 +141,19 @@ private fun parseInline(source: String): List<MarkdownSpan> {
                     flush()
                     out += MarkdownSpan.Mention(match.value)
                     i += match.value.length
+                } else {
+                    buffer.append(source[i]); i++
+                }
+            }
+
+            source[i] == ':' && emojis.isNotEmpty() -> {
+                val end = source.indexOf(':', i + 1)
+                val name = if (end > i + 1) source.substring(i + 1, end) else ""
+                val url = emojis[name]
+                if (url != null && EMOJI_NAME.matches(name)) {
+                    flush()
+                    out += MarkdownSpan.Emoji(name, url)
+                    i = end + 1
                 } else {
                     buffer.append(source[i]); i++
                 }

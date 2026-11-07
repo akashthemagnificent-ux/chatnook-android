@@ -57,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
@@ -382,6 +383,7 @@ private fun MessageRow(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val pending = message.sendState != ChatMessage.SendState.Sent
+    val emojiMap = remember(customEmojis) { customEmojis.associate { it.name to it.url } }
 
     Row(
         modifier = Modifier
@@ -417,7 +419,7 @@ private fun MessageRow(
                         color = if (isMine) ChatNookColors.Blurple else ChatNookColors.Green,
                     )
                     Text(
-                        text = message.createdAt.hhmm(),
+                        text = clockLabel(message.createdAt),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -453,6 +455,7 @@ private fun MessageRow(
                     MarkdownText(
                         text = message.content,
                         modifier = Modifier.weight(1f),
+                        emojis = emojiMap,
                     )
                 }
                 message.editedAt?.let {
@@ -628,6 +631,11 @@ private fun MessageInput(
     }
 }
 
-private val clockFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-
-private fun Long.hhmm(): String = clockFormat.format(Date(this))
+/** 12h or 24h follows the system setting, like every other chat app. */
+@Composable
+private fun clockLabel(epochMillis: Long): String {
+    val context = LocalContext.current
+    val pattern = if (android.text.format.DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm a"
+    val format = remember(pattern) { SimpleDateFormat(pattern, Locale.getDefault()) }
+    return format.format(Date(epochMillis))
+}

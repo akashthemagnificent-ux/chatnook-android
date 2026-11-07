@@ -4,9 +4,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-private fun spans(text: String) = parseMarkdown(text)
+private fun spans(text: String, emojis: Map<String, String> = emptyMap()) =
+    parseMarkdown(text, emojis)
 
-private fun plainText(text: String): String = spans(text).joinToString("") { it.text }
+private fun plainText(text: String, emojis: Map<String, String> = emptyMap()): String =
+    spans(text, emojis).joinToString("") { it.text }
 
 class MessageMarkdownTest {
 
@@ -63,5 +65,21 @@ class MessageMarkdownTest {
         val result = spans("```\nval x = 1")
         assertTrue(result.none { it is MarkdownSpan.CodeBlock })
         assertTrue(plainText("```\nval x = 1").contains("val x = 1"))
+    }
+
+    @Test
+    fun `known emoji resolves to its image`() {
+        val result = spans("party :blob:", mapOf("blob" to "https://cdn/blob.png"))
+        val emoji = result.filterIsInstance<MarkdownSpan.Emoji>().single()
+        assertEquals("blob", emoji.name)
+        assertEquals("https://cdn/blob.png", emoji.url)
+        assertEquals("party ", result.filterIsInstance<MarkdownSpan.Plain>().single().text)
+    }
+
+    @Test
+    fun `unknown emoji and clocks stay literal`() {
+        val emojis = mapOf("blob" to "https://cdn/blob.png")
+        assertEquals("meet at 12:30 :nope:", plainText("meet at 12:30 :nope:", emojis))
+        assertTrue(parseMarkdown("meet at 12:30", emojis).none { it is MarkdownSpan.Emoji })
     }
 }
