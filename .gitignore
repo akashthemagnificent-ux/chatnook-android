@@ -23,3 +23,7 @@ captures/
 # Node (schema validator tooling)
 node_modules
 tools/schema-validation/node_modules
+
+# Python tooling
+__pycache__/
+*.pyc
