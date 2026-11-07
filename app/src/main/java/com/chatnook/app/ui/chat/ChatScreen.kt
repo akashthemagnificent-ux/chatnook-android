@@ -1,5 +1,8 @@
 package com.chatnook.app.ui.chat
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -9,6 +12,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -24,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -57,6 +63,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -65,7 +73,10 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.net.Uri
 import coil3.compose.AsyncImage
 import com.chatnook.app.R
 import com.chatnook.app.domain.model.ChatMessage
@@ -101,6 +112,7 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val zone = remember { TimeZone.getDefault() }
+    val context = LocalContext.current
 
     val items = remember(messages, zone) { buildTimeline(messages, zone) }
     val latestItems by rememberUpdatedState(items)
@@ -281,6 +293,7 @@ fun ChatScreen(
                         replyTo = null
                     }
                 },
+                onPickImage = { uri -> viewModel.sendImage(channelId, context, uri) },
             )
         }
     }
@@ -444,15 +457,15 @@ private fun MessageRow(
             }
 
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (message.content.isEmpty()) {
-                    Text(
+                when {
+                    message.isDeleted -> Text(
                         text = stringResource(R.string.chat_deleted),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f),
                     )
-                } else {
-                    MarkdownText(
+                    message.content.isEmpty() -> Spacer(Modifier.weight(1f))
+                    else -> MarkdownText(
                         text = message.content,
                         modifier = Modifier.weight(1f),
                         emojis = emojiMap,
@@ -464,6 +477,38 @@ private fun MessageRow(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+            }
+
+            // One image per message: the composer sends one, and the row shows one.
+            (message.attachments.firstOrNull()?.url ?: message.localImageUri)?.let { source ->
+                var zoomed by remember(message.messageId) { mutableStateOf(false) }
+                val ratio = message.attachments.firstOrNull()?.aspectRatio ?: 0.75f
+                AsyncImage(
+                    model = source,
+                    contentDescription = message.attachments.firstOrNull()?.filename
+                        ?: stringResource(R.string.chat_image),
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .padding(top = 6.dp)
+                        .widthIn(max = 260.dp)
+                        .fillMaxWidth()
+                        .aspectRatio(1f / ratio)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { zoomed = true }
+                        .testTag("chat_image"),
+                )
+                if (zoomed) {
+                    Dialog(onDismissRequest = { zoomed = false }, properties = fullscreenDialog()) {
+                        Box(Modifier.fillMaxSize().background(Color.Black).clickable { zoomed = false }) {
+                            AsyncImage(
+                                model = source,
+                                contentDescription = null,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier.fillMaxSize().padding(12.dp),
+                            )
+                        }
+                    }
                 }
             }
 
@@ -597,12 +642,33 @@ private fun MessageInput(
     isEditing: Boolean,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
+    onPickImage: (Uri) -> Unit,
 ) {
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { uri -> uri?.let(onPickImage) }
+
     Row(
         modifier = Modifier.fillMaxWidth().padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        if (!isEditing) {
+            IconButton(
+                onClick = {
+                    picker.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                    )
+                },
+                modifier = Modifier.testTag("chat_attach"),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = stringResource(R.string.chat_attach_image),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         OutlinedTextField(
             value = draft,
             onValueChange = onDraftChange,
@@ -630,6 +696,9 @@ private fun MessageInput(
         }
     }
 }
+
+/** Edge-to-edge dialog: an image viewer should not sit inside a padded card. */
+private fun fullscreenDialog() = DialogProperties(usePlatformDefaultWidth = false)
 
 /** 12h or 24h follows the system setting, like every other chat app. */
 @Composable

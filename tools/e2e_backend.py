@@ -9,6 +9,7 @@ Every assertion mirrors a Kotlin call site, so a schema or policy change that wo
 the app fails here first. The message query is read straight out of SupabaseChatRepository.kt
 rather than duplicated, so it cannot drift.
 """
+import base64
 import json
 import os
 import re
@@ -88,6 +89,20 @@ class Api:
 
     def rpc(self, name, body, **kw):
         return self._req("/rest/v1/rpc/" + name, "POST", body, **kw)
+
+    def upload(self, path, data, content_type="image/png"):
+        """Raw bytes to the Storage API; _req would JSON-encode them."""
+        headers = {
+            "apikey": ANON,
+            "Authorization": "Bearer " + (self.token or ""),
+            "Content-Type": content_type,
+        }
+        req = urllib.request.Request(URL + path, data=data, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status, r.read()[:200]
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode()[:300]
 
 
 anon = Api()
@@ -194,10 +209,53 @@ def run(created_users, created_guilds):
             check("pages do not overlap", not ids, ids)
             check("61 messages split 50+11", len(older) == 11, len(older))
 
-    print("RLS isolation")
     b_tok, b_uid = signup()
     created_users.append(b_uid)
     b = Api(b_tok)
+
+    print("media")
+    png = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    )
+    object_path = f"{a_uid}/e2e.png"
+    st, body = a.upload(f"/storage/v1/object/attachments/{object_path}", png)
+    check("upload to attachments bucket", st == 200, f"{st} {body}")
+    public_url = f"{URL}/storage/v1/object/public/attachments/{object_path}"
+    req = urllib.request.Request(public_url)
+    with urllib.request.urlopen(req) as r:
+        check("attachment is publicly readable", r.status == 200, r.status)
+
+    st, mid = a.rpc(
+        "send_message",
+        {
+            "p_channel_id": cid,
+            "p_content": "",
+            "p_message_id": str(uuid.uuid4()),
+            "p_attachment": {
+                "url": public_url,
+                "filename": "e2e.png",
+                "content_type": "image/png",
+                "size_bytes": len(png),
+                "width": 1,
+                "height": 1,
+            },
+        },
+    )
+    check("send_message rpc with image", st == 200 and isinstance(mid, str), f"{st} {mid}")
+    if st == 200:
+        st, rows = a.get(f"/rest/v1/messages?select={MESSAGE_COLUMNS}&id=eq.{mid}")
+        found = rows[0]["attachments"] if st == 200 and rows else []
+        check(
+            "message carries its attachment",
+            len(found) == 1 and found[0]["url"] == public_url and found[0]["width"] == 1,
+            f"{st} {rows}",
+        )
+        check(
+            "outsider cannot read the attachment row",
+            b.get(f"/rest/v1/attachments?select=id&message_id=eq.{mid}")[1] == [],
+        )
+
+    print("RLS isolation")
     check("outsider cannot read guild",
           b.get(f"/rest/v1/guilds?select=id&id=eq.{gid}")[1] == [])
     check("outsider cannot read channel",
@@ -211,8 +269,11 @@ def run(created_users, created_guilds):
     if st == 200:
         st, joined = b.rpc("join_guild", {"invite_code": code})
         check("join_guild rpc", st == 200 and joined == gid, f"{st} {joined}")
+        st, mine = a.get(f"/rest/v1/messages?select=id&channel_id=eq.{cid}")
+        expected = len(mine) if st == 200 else -1
         st, rows = b.get(f"/rest/v1/messages?select=id&channel_id=eq.{cid}")
-        check("member reads history", st == 200 and len(rows) == 61, f"{st} {len(rows) if st == 200 else rows}")
+        check("member reads history", st == 200 and len(rows) == expected,
+              f"{st} {len(rows) if st == 200 else rows} vs {expected}")
         st, _ = b.post("/rest/v1/messages",
                        {"channel_id": cid, "author_id": b_uid, "content": "from b"})
         check("member can post", st == 201, st)

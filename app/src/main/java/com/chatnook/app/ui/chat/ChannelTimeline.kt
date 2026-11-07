@@ -1,6 +1,7 @@
 package com.chatnook.app.ui.chat
 
 import com.chatnook.app.domain.model.ChatMessage
+import com.chatnook.app.domain.model.OutgoingImage
 import com.chatnook.app.domain.model.Profile
 import com.chatnook.app.domain.repository.ChatRepository
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +39,9 @@ class ChannelTimeline(
 
     private val older = MutableStateFlow<List<ChatMessage>>(emptyList())
     private val local = MutableStateFlow<Map<String, ChatMessage>>(emptyMap())
+
+    /** Bytes for messages still in flight; dropped as soon as the server owns the row. */
+    private val pendingImages = mutableMapOf<String, OutgoingImage>()
 
     private val _hasMore = MutableStateFlow(true)
     val hasMore: StateFlow<Boolean> = _hasMore.asStateFlow()
@@ -90,23 +94,33 @@ class ChannelTimeline(
         }
     }
 
-    /** Queues a message locally, then inserts it under the same id. */
-    fun send(content: String, replyToId: String?): String {
+    /**
+     * Queues a message locally, then inserts it under the same id. [localImageUri] is only
+     * what the optimistic bubble shows; the upload happens in [deliver].
+     */
+    fun send(
+        content: String,
+        replyToId: String?,
+        image: OutgoingImage? = null,
+        localImageUri: String? = null,
+    ): String {
         val text = content.trim()
-        if (text.isEmpty()) return ""
+        if (text.isEmpty() && image == null) return ""
         val profile = myProfile()
         val optimistic = ChatMessage(
             messageId = UUID.randomUUID().toString(),
             channelId = channelId,
             senderId = myUserId(),
             content = text,
-            messageType = ChatMessage.MessageType.text,
+            messageType = if (image != null) ChatMessage.MessageType.image else ChatMessage.MessageType.text,
             createdAt = System.currentTimeMillis(),
             replyToId = replyToId,
             senderName = profile?.authorLabel,
             senderAvatarUrl = profile?.avatarUrl,
+            localImageUri = localImageUri,
             sendState = ChatMessage.SendState.Pending,
         )
+        if (image != null) pendingImages[optimistic.messageId] = image
         local.update { it + (optimistic.messageId to optimistic) }
         deliver(optimistic)
         return optimistic.messageId
@@ -126,8 +140,10 @@ class ChannelTimeline(
                     content = message.content,
                     replyToId = message.replyToId,
                     messageId = message.messageId,
+                    image = pendingImages[message.messageId],
                 )
             }.onSuccess { authoritative ->
+                pendingImages.remove(message.messageId)
                 // Kept local until Realtime echoes it, so the bubble never blinks out.
                 local.update { it + (message.messageId to authoritative) }
             }.onFailure {
