@@ -57,7 +57,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -169,7 +172,13 @@ fun ChatScreen(
     }
 
     Scaffold(modifier = modifier.fillMaxSize()) { innerPadding ->
-        Column(modifier = Modifier.fillMaxSize().padding(innerPadding).imePadding()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .imePadding()
+                .semantics { testTagsAsResourceId = true },
+        ) {
             ChatHeader(channelName = channelName, onBack = onBack)
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
@@ -227,7 +236,10 @@ fun ChatScreen(
                         color = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                         shadowElevation = 4.dp,
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 12.dp)
+                            .testTag("chat_jump"),
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -275,6 +287,7 @@ fun ChatScreen(
     deleting?.let { target ->
         AlertDialog(
             onDismissRequest = { deleting = null },
+            modifier = Modifier.semantics { testTagsAsResourceId = true },
             title = { Text(stringResource(R.string.chat_delete_title)) },
             text = { Text(stringResource(R.string.chat_delete_body)) },
             confirmButton = {
@@ -429,16 +442,19 @@ private fun MessageRow(
             }
 
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = message.content.ifEmpty { stringResource(R.string.chat_deleted) },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (message.content.isEmpty()) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                    modifier = Modifier.weight(1f),
-                )
+                if (message.content.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.chat_deleted),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    MarkdownText(
+                        text = message.content,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
                 message.editedAt?.let {
                     Text(
                         text = stringResource(R.string.chat_edited),
@@ -587,11 +603,15 @@ private fun MessageInput(
         OutlinedTextField(
             value = draft,
             onValueChange = onDraftChange,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).testTag("chat_input"),
             placeholder = { Text(stringResource(R.string.chat_input_hint, channelName)) },
             maxLines = 4,
         )
-        IconButton(onClick = onSend, enabled = draft.isNotBlank()) {
+        IconButton(
+            onClick = onSend,
+            enabled = draft.isNotBlank(),
+            modifier = Modifier.testTag("chat_send"),
+        ) {
             Icon(
                 imageVector = if (isEditing) {
                     Icons.Filled.Edit
