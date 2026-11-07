@@ -22,7 +22,26 @@ interface ChatRepository {
     /** Newest page of a channel, oldest-first, kept live via Realtime. */
     fun getChannelMessages(channelId: String): Flow<List<ChatMessage>>
 
-    suspend fun sendMessage(channelId: String, content: String, replyToId: String? = null): ChatMessage
+    /**
+     * One page of messages older than [before], oldest-first. Empty means the start of
+     * the channel has been reached.
+     */
+    suspend fun loadOlderMessages(
+        channelId: String,
+        before: ChatMessage,
+        limit: Int = 50,
+    ): List<ChatMessage>
+
+    /**
+     * Inserts a message under a caller-chosen [messageId] so an optimistic bubble can be
+     * reconciled with the realtime echo by id instead of by content.
+     */
+    suspend fun sendMessage(
+        channelId: String,
+        content: String,
+        replyToId: String? = null,
+        messageId: String = java.util.UUID.randomUUID().toString(),
+    ): ChatMessage
 
     suspend fun editMessage(messageId: String, content: String)
 

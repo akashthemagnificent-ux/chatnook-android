@@ -16,17 +16,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -37,16 +41,27 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -58,9 +73,13 @@ import com.chatnook.app.domain.model.CustomEmoji
 import com.chatnook.app.domain.model.Reaction
 import com.chatnook.app.domain.model.isCustomEmoji
 import com.chatnook.app.ui.theme.ChatNookColors
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 /** Quick reactions offered on every message, Discord's default set. */
 private val DEFAULT_REACTIONS = listOf("\uD83D\uDC4D", "\uD83D\uDE02", "\u2764\uFE0F", "\uD83D\uDD25")
@@ -74,57 +93,163 @@ fun ChatScreen(
     modifier: Modifier = Modifier,
 ) {
     val messages by viewModel.messages(channelId).collectAsStateWithLifecycle()
+    val loadingOlder by viewModel.isLoadingOlder(channelId).collectAsStateWithLifecycle()
     val draft by viewModel.draft.collectAsStateWithLifecycle()
     val guildId by viewModel.selectedGuildId.collectAsStateWithLifecycle()
     val customEmojis by viewModel.emojis(guildId).collectAsStateWithLifecycle()
     val myId = viewModel.currentUserId
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val zone = remember { TimeZone.getDefault() }
+
+    val items = remember(messages, zone) { buildTimeline(messages, zone) }
+    val latestItems by rememberUpdatedState(items)
+    val messageCount = messages.size
 
     var replyTo by remember(channelId) { mutableStateOf<ChatMessage?>(null) }
     var editing by remember(channelId) { mutableStateOf<ChatMessage?>(null) }
+    var deleting by remember(channelId) { mutableStateOf<ChatMessage?>(null) }
 
-    // Keep the newest message in view as the list grows.
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
+    var initialScrollDone by remember(channelId) { mutableStateOf(false) }
+    var newBelow by remember(channelId) { mutableIntStateOf(0) }
+    var seenCount by remember(channelId) { mutableIntStateOf(0) }
+    // Set right before prepending a page; the list scrolls back to it once the rows land.
+    var anchorKey by remember(channelId) { mutableStateOf<String?>(null) }
+    var anchorOffset by remember(channelId) { mutableIntStateOf(0) }
+
+    val atBottom by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull() ?: return@derivedStateOf true
+            last.index >= info.totalItemsCount - 1
+        }
+    }
+
+    // Reaching the newest row by hand clears the "new messages" counter.
+    LaunchedEffect(atBottom, messageCount) {
+        if (atBottom) {
+            newBelow = 0
+            seenCount = messageCount
+        }
+    }
+
+    LaunchedEffect(items.size) {
+        if (items.isEmpty()) return@LaunchedEffect
+        if (!initialScrollDone) {
+            listState.scrollToItem(items.lastIndex)
+            initialScrollDone = true
+            seenCount = messageCount
+            return@LaunchedEffect
+        }
+        val key = anchorKey
+        if (key != null) {
+            val index = items.indexOfFirst { it.key == key }
+            if (index >= 0) listState.scrollToItem(index, anchorOffset)
+            anchorKey = null
+            return@LaunchedEffect
+        }
+        if (atBottom) {
+            listState.animateScrollToItem(items.lastIndex)
+            seenCount = messageCount
+            newBelow = 0
+        } else {
+            newBelow = (messageCount - seenCount).coerceAtLeast(0)
+        }
+    }
+
+    // Paging: the first visible row is near the top and older pages remain.
+    LaunchedEffect(channelId) {
+        snapshotFlow {
+            listState.layoutInfo.visibleItemsInfo.firstOrNull()?.index ?: Int.MAX_VALUE
+        }.distinctUntilChanged().collect { firstVisible ->
+            if (firstVisible > 2) return@collect
+            val anchor = listState.layoutInfo.visibleItemsInfo.firstOrNull() ?: return@collect
+            val key = latestItems.getOrNull(anchor.index)?.key ?: return@collect
+            anchorKey = key
+            anchorOffset = anchor.offset
+            val added = viewModel.loadOlder(channelId)
+            if (added == 0) anchorKey = null
+        }
     }
 
     Scaffold(modifier = modifier.fillMaxSize()) { innerPadding ->
-        Column(modifier = Modifier.fillMaxSize().padding(innerPadding).imePadding()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .imePadding()
+                .semantics { testTagsAsResourceId = true },
+        ) {
             ChatHeader(channelName = channelName, onBack = onBack)
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
-            if (messages.isEmpty()) {
-                Box(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = stringResource(R.string.chat_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    itemsIndexed(messages, key = { _, it -> it.messageId }) { index, message ->
-                        val previous = messages.getOrNull(index - 1)
-                        MessageRow(
-                            message = message,
-                            isMine = message.senderId == myId,
-                            grouped = previous?.senderId == message.senderId &&
-                                message.createdAt - previous.createdAt < 5 * 60_000,
-                            onReply = { replyTo = message },
-                            onEdit = { editing = message },
-                            onDelete = { viewModel.delete(message.messageId) },
-                            onReact = { emoji -> viewModel.react(message.messageId, emoji) },
-                            myId = myId,
-                            customEmojis = customEmojis,
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                if (items.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = stringResource(R.string.chat_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        if (loadingOlder) {
+                            item(key = "loading-older") {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(8.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) { CircularProgressIndicator(modifier = Modifier.size(20.dp)) }
+                            }
+                        }
+                        items(items, key = { it.key }) { item ->
+                            when (item) {
+                                is TimelineItem.Day -> DaySeparator(item.dayKey, zone)
+                                is TimelineItem.Msg -> MessageRow(
+                                    message = item.message,
+                                    isMine = item.message.senderId == myId,
+                                    grouped = item.grouped,
+                                    onReply = { replyTo = item.message },
+                                    onEdit = { editing = item.message },
+                                    onDelete = { deleting = item.message },
+                                    onReact = { emoji -> viewModel.react(item.message.messageId, emoji) },
+                                    onRetry = { viewModel.retry(item.message.messageId, channelId) },
+                                    myId = myId,
+                                    customEmojis = customEmojis,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (newBelow > 0) {
+                    Surface(
+                        onClick = {
+                            scope.launch { listState.animateScrollToItem(latestItems.lastIndex) }
+                            newBelow = 0
+                        },
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        shadowElevation = 4.dp,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 12.dp)
+                            .testTag("chat_jump"),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Icon(Icons.Filled.ArrowDownward, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Text(stringResource(R.string.chat_new_messages, newBelow), style = MaterialTheme.typography.labelLarge)
+                        }
                     }
                 }
             }
@@ -142,6 +267,7 @@ fun ChatScreen(
 
             MessageInput(
                 draft = draft,
+                channelName = channelName,
                 isEditing = editing != null,
                 onDraftChange = viewModel::updateDraft,
                 onSend = {
@@ -157,6 +283,28 @@ fun ChatScreen(
                 },
             )
         }
+    }
+
+    deleting?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            modifier = Modifier.semantics { testTagsAsResourceId = true },
+            title = { Text(stringResource(R.string.chat_delete_title)) },
+            text = { Text(stringResource(R.string.chat_delete_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.delete(target.messageId)
+                        deleting = null
+                    },
+                ) { Text(stringResource(R.string.chat_delete_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleting = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
     }
 }
 
@@ -183,6 +331,42 @@ private fun ChatHeader(channelName: String, onBack: () -> Unit) {
     }
 }
 
+@Composable
+private fun DaySeparator(dayKey: String, zone: TimeZone) {
+    val now = remember { System.currentTimeMillis() }
+    val millis = remember(dayKey, zone) { parseDayKey(dayKey, zone) }
+    val label = when (dayLabel(millis, now, zone)) {
+        DayLabel.Today -> stringResource(R.string.chat_today)
+        DayLabel.Yesterday -> stringResource(R.string.chat_yesterday)
+        DayLabel.Date -> formatDay(millis, zone)
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = RoundedCornerShape(12.dp),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+            )
+        }
+    }
+}
+
+/** Inverse of [dayKey] for rendering; noon avoids DST edges. */
+private fun parseDayKey(key: String, zone: TimeZone): Long {
+    val parts = key.split('-')
+    return Calendar.getInstance(zone).apply {
+        clear()
+        set(parts[0].toInt(), parts[1].toInt() - 1, parts[2].toInt(), 12, 0, 0)
+    }.timeInMillis
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageRow(
@@ -194,15 +378,19 @@ private fun MessageRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onReact: (String) -> Unit,
+    onRetry: () -> Unit,
     customEmojis: List<CustomEmoji>,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    val pending = message.sendState != ChatMessage.SendState.Sent
+    val emojiMap = remember(customEmojis) { customEmojis.associate { it.name to it.url } }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(6.dp))
             .combinedClickable(onClick = {}, onLongClick = { menuOpen = true })
+            .alpha(if (message.sendState == ChatMessage.SendState.Pending) 0.6f else 1f)
             .padding(vertical = if (grouped) 1.dp else 6.dp, horizontal = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -231,7 +419,7 @@ private fun MessageRow(
                         color = if (isMine) ChatNookColors.Blurple else ChatNookColors.Green,
                     )
                     Text(
-                        text = message.createdAt.hhmm(),
+                        text = clockLabel(message.createdAt),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -256,16 +444,20 @@ private fun MessageRow(
             }
 
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = message.content.ifEmpty { stringResource(R.string.chat_deleted) },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (message.content.isEmpty()) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                    modifier = Modifier.weight(1f),
-                )
+                if (message.content.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.chat_deleted),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    MarkdownText(
+                        text = message.content,
+                        modifier = Modifier.weight(1f),
+                        emojis = emojiMap,
+                    )
+                }
                 message.editedAt?.let {
                     Text(
                         text = stringResource(R.string.chat_edited),
@@ -277,6 +469,16 @@ private fun MessageRow(
 
             if (message.reactions.isNotEmpty()) {
                 ReactionRow(reactions = message.reactions, myId = myId, onReact = onReact)
+            }
+
+            if (message.sendState == ChatMessage.SendState.Failed) {
+                TextButton(onClick = onRetry, contentPadding = PaddingValues(0.dp)) {
+                    Text(
+                        text = stringResource(R.string.chat_failed_retry),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
         }
 
@@ -298,7 +500,7 @@ private fun MessageRow(
                     onClick = { menuOpen = false; onReact(emoji.code) },
                 )
             }
-            if (isMine && message.content.isNotEmpty()) {
+            if (isMine && message.content.isNotEmpty() && !pending) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.chat_action_edit)) },
                     leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
@@ -391,6 +593,7 @@ private fun ComposeBanner(label: String, onCancel: () -> Unit) {
 @Composable
 private fun MessageInput(
     draft: String,
+    channelName: String,
     isEditing: Boolean,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
@@ -403,11 +606,15 @@ private fun MessageInput(
         OutlinedTextField(
             value = draft,
             onValueChange = onDraftChange,
-            modifier = Modifier.weight(1f),
-            placeholder = { Text(stringResource(R.string.chat_input_hint)) },
+            modifier = Modifier.weight(1f).testTag("chat_input"),
+            placeholder = { Text(stringResource(R.string.chat_input_hint, channelName)) },
             maxLines = 4,
         )
-        IconButton(onClick = onSend, enabled = draft.isNotBlank()) {
+        IconButton(
+            onClick = onSend,
+            enabled = draft.isNotBlank(),
+            modifier = Modifier.testTag("chat_send"),
+        ) {
             Icon(
                 imageVector = if (isEditing) {
                     Icons.Filled.Edit
@@ -424,6 +631,11 @@ private fun MessageInput(
     }
 }
 
-private val clockFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-
-private fun Long.hhmm(): String = clockFormat.format(Date(this))
+/** 12h or 24h follows the system setting, like every other chat app. */
+@Composable
+private fun clockLabel(epochMillis: Long): String {
+    val context = LocalContext.current
+    val pattern = if (android.text.format.DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm a"
+    val format = remember(pattern) { SimpleDateFormat(pattern, Locale.getDefault()) }
+    return format.format(Date(epochMillis))
+}

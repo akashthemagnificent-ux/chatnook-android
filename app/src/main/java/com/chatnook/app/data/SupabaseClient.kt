@@ -8,6 +8,8 @@ import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.storage.Storage
+import android.util.Log
+import io.ktor.client.engine.okhttp.OkHttp
 
 /**
  * Single source of truth for the ChatNook Supabase connection.
@@ -36,6 +38,24 @@ object Supabase {
             supabaseUrl = BuildConfig.SUPABASE_URL,
             supabaseKey = BuildConfig.SUPABASE_ANON_KEY,
         ) {
+            // Debug-only request log: the release build stays silent.
+            httpEngine = OkHttp.create {
+                if (BuildConfig.DEBUG) {
+                    addInterceptor { chain ->
+                        val request = chain.request()
+                        val response = chain.proceed(request)
+                        // Realtime upgrades to a websocket, whose body cannot be peeked.
+                        val body = runCatching { response.peekBody(2048).string().take(200) }
+                            .getOrDefault("<stream>")
+                        Log.d(
+                            "ChatNookHttp",
+                            "${request.method} ${request.url.encodedPath} -> ${response.code} $body",
+                        )
+                        Log.d("ChatNookHttp", "claims ${request.claimsSummary()}")
+                        response
+                    }
+                }
+            }
             install(Auth) {
                 // PKCE + deep link so magic links return into the app.
                 scheme = AUTH_SCHEME
@@ -50,4 +70,17 @@ object Supabase {
 
     /** Returns the client, or null when the build has no real credentials. */
     fun clientOrNull(): SupabaseClient? = if (isConfigured) client else null
+}
+
+/** Debug aid: prints the JWT claims (never the token) so RLS surprises are diagnosable. */
+private fun okhttp3.Request.claimsSummary(): String {
+    val token = header("Authorization")?.removePrefix("Bearer ") ?: return "no-auth"
+    val payload = token.split('.').getOrNull(1) ?: return "apikey=${token.take(12)}"
+    val json = runCatching {
+        String(android.util.Base64.decode(payload, android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING))
+    }.getOrNull() ?: return "unparsable"
+    val role = Regex("\"role\":\"([^\"]+)\"").find(json)?.groupValues?.get(1)
+    val sub = Regex("\"sub\":\"([^\"]+)\"").find(json)?.groupValues?.get(1)
+    val aud = Regex("\"aud\":\"?([^\",]+)\"?").find(json)?.groupValues?.get(1)
+    return "role=$role sub=${sub?.take(8)} aud=$aud"
 }

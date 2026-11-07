@@ -1,0 +1,11 @@
+context platform=android device="atd35" kind=emulator theme=unknown
+open "com.chatnook.app"
+press "label=\"Create server\""
+fill "id=\"dialog_input\"" "Smoke ${RUN}"
+press "id=\"dialog_confirm\""
+wait "id=\"channel_general\"" 20000
+press "id=\"channel_general\""
+wait "id=\"chat_input\"" 10000
+fill "id=\"chat_input\"" "smoke hello ${RUN}"
+press "id=\"chat_send\""
+wait "text=\"smoke hello ${RUN}\"" 10000

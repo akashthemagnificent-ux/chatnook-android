@@ -6,10 +6,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -38,6 +40,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -94,7 +99,12 @@ fun ChannelListScreen(
             }
         },
     ) { innerPadding ->
-        Row(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .semantics { testTagsAsResourceId = true },
+        ) {
             GuildRail(
                 guilds = guilds,
                 selectedGuildId = selectedGuildId,
@@ -226,7 +236,9 @@ private fun GuildRail(
 ) {
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            // Fixed-width rail: fillMaxSize here would starve the channel column of width.
+            .fillMaxHeight()
+            .width(64.dp)
             .background(ChatNookColors.DarkBase)
             .padding(vertical = 8.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -241,7 +253,8 @@ private fun GuildRail(
                     .background(
                         if (selected) ChatNookColors.Blurple else ChatNookColors.DarkElevated,
                     )
-                    .clickable { onSelect(guild.guildId) },
+                    .clickable { onSelect(guild.guildId) }
+                    .testTag("guild_${guild.name}"),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -327,6 +340,7 @@ private fun ChannelRow(channel: ChatChannel, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
+            .testTag("channel_${channel.name}")
             .padding(horizontal = 20.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -365,6 +379,8 @@ private fun InputDialog(
     var value by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
+        // Dialogs are their own semantics window, so the root flag has to be repeated here.
+        modifier = Modifier.semantics { testTagsAsResourceId = true },
         title = { Text(title) },
         text = {
             OutlinedTextField(
@@ -372,10 +388,15 @@ private fun InputDialog(
                 onValueChange = { value = it },
                 label = { Text(label) },
                 singleLine = true,
+                modifier = Modifier.testTag("dialog_input"),
             )
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(value) }, enabled = value.isNotBlank()) {
+            TextButton(
+                onClick = { onConfirm(value) },
+                enabled = value.isNotBlank(),
+                modifier = Modifier.testTag("dialog_confirm"),
+            ) {
                 Text(stringResource(R.string.action_create))
             }
         },

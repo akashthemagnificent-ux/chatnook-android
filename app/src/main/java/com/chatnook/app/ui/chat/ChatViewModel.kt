@@ -46,8 +46,20 @@ class ChatViewModel(
     val myProfile: StateFlow<Profile?> = repository.getMyProfile()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    // One shared flow per channel, created the first time it is opened.
-    private val messagesByChannel = mutableMapOf<String, StateFlow<List<ChatMessage>>>()
+    // One timeline per channel, created the first time it is opened. It keeps the live
+    // window, loaded older pages and optimistic rows together.
+    private val timelines = mutableMapOf<String, ChannelTimeline>()
+
+    private fun timeline(channelId: String): ChannelTimeline =
+        timelines.getOrPut(channelId) {
+            ChannelTimeline(
+                channelId = channelId,
+                repository = repository,
+                scope = viewModelScope,
+                myProfile = { myProfile.value },
+                myUserId = { currentUserId },
+            )
+        }
 
     private val noEmojis = MutableStateFlow(emptyList<CustomEmoji>())
     private val emojisByGuild = mutableMapOf<String, StateFlow<List<CustomEmoji>>>()
@@ -75,11 +87,18 @@ class ChatViewModel(
         _selectedGuildId.value = guildId
     }
 
-    fun messages(channelId: String): StateFlow<List<ChatMessage>> =
-        messagesByChannel.getOrPut(channelId) {
-            repository.getChannelMessages(channelId)
-                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-        }
+    fun messages(channelId: String): StateFlow<List<ChatMessage>> = timeline(channelId).messages
+
+    fun hasMore(channelId: String): StateFlow<Boolean> = timeline(channelId).hasMore
+
+    fun isLoadingOlder(channelId: String): StateFlow<Boolean> = timeline(channelId).loadingOlder
+
+    /** Returns how many rows were prepended, so the list can keep its scroll anchor. */
+    suspend fun loadOlder(channelId: String): Int = timeline(channelId).loadOlder()
+
+    fun retry(messageId: String, channelId: String) {
+        timeline(channelId).retry(messageId)
+    }
 
     fun updateDraft(text: String) {
         _draft.value = text
@@ -112,12 +131,9 @@ class ChatViewModel(
     fun send(channelId: String, replyToId: String? = null) {
         val content = _draft.value.trim()
         if (content.isEmpty()) return
-        viewModelScope.launch {
-            runCatching { repository.sendMessage(channelId, content, replyToId) }
-                // Only clear what was actually sent, so text typed while in flight is kept.
-                .onSuccess { if (_draft.value.trim() == content) _draft.value = "" }
-                .onFailure { _notice.value = "Send failed: ${it.friendly()}" }
-        }
+        // Cleared at once: the bubble is already on screen and carries the text for retry.
+        _draft.value = ""
+        timeline(channelId).send(content, replyToId)
     }
 
     fun edit(messageId: String, content: String) {
