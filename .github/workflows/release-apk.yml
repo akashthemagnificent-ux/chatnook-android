@@ -7,6 +7,12 @@ on:
         description: Why this build is being produced
         required: false
         default: Manual release build
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'plans/**'
+      - 'docs/**'
   push:
     branches: [main]
     paths-ignore:

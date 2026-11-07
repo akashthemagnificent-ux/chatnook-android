@@ -1,0 +1,8 @@
+context platform=android device="atd35" kind=emulator theme=unknown
+open "com.chatnook.app"
+fill "id=\"auth_email\"" "agent@example.com"
+fill "id=\"auth_password\"" "${PASSWORD}"
+press "label=\"Sign in\""
+wait "label=\"Sign in\"" 20000
+press "label=\"Continue anonymously\""
+wait "label=\"Join server\"" 5000
