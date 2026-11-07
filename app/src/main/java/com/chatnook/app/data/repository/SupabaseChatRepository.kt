@@ -1,5 +1,6 @@
 package com.chatnook.app.data.repository
 
+import android.util.Log
 import com.chatnook.app.data.Supabase
 import com.chatnook.app.domain.model.ChatChannel
 import com.chatnook.app.domain.model.ChatMessage
@@ -45,9 +46,11 @@ class SupabaseChatRepository : ChatRepository {
         /** Discord-ish page size; enough to fill a phone screen twice. */
         const val PAGE_SIZE = 50L
 
+        // The FK hint is required: messages reaches profiles both directly (author_id) and
+        // through reactions, so a bare `profiles` embed answers 300 Multiple Choices.
         const val MESSAGE_COLUMNS =
             "id,channel_id,author_id,content,type,reply_to_id,created_at,edited_at," +
-                "author:profiles(id,username,display_name,avatar_url)," +
+                "author:profiles!messages_author_id_fkey(id,username,display_name,avatar_url)," +
                 "reply:messages(content,author_id)," +
                 "reactions(emoji,user_id)"
 
@@ -59,6 +62,15 @@ class SupabaseChatRepository : ChatRepository {
     private fun userId(): String =
         Supabase.clientOrNull()?.auth?.currentUserOrNull()?.id
             ?: error("Not signed in")
+
+    /**
+     * Empty state instead of a crash, but with a log line: a silently swallowed
+     * PostgREST 300 (ambiguous embed) once looked like an RLS outage for hours.
+     */
+    private suspend fun <T> loadOr(label: String, fallback: T, block: suspend () -> T): T =
+        runCatching { block() }
+            .onFailure { Log.w("ChatNookRepo", "$label failed", it) }
+            .getOrDefault(fallback)
 
     // ------------------------------------------------------------------ guilds
 
@@ -74,7 +86,7 @@ class SupabaseChatRepository : ChatRepository {
 
         // A failed load must not kill the screen: an unapplied migration or a dropped
         // connection shows an empty state, not a crash.
-        emit(runCatching { load() }.getOrDefault(emptyList()))
+        emit(loadOr("guilds", emptyList()) { load() })
 
         // Membership rows carry no payload we can patch locally, so re-read the
         // whole (tiny) list whenever it changes.
@@ -85,7 +97,7 @@ class SupabaseChatRepository : ChatRepository {
         }
         channel.subscribe()
         try {
-            events.collect { emit(runCatching { load() }.getOrDefault(emptyList())) }
+            events.collect { emit(loadOr("guilds", emptyList()) { load() }) }
         } finally {
             runCatching { channel.unsubscribe() }
         }
@@ -159,7 +171,7 @@ class SupabaseChatRepository : ChatRepository {
             .map(ChatChannel::fromJson)
             .filter { it.type == "text" }
 
-        emit(runCatching { load() }.getOrDefault(emptyList()))
+        emit(loadOr("channels", emptyList()) { load() })
 
         val channel = client.channel("channels-$guildId")
         val events = channel.postgresChangeFlow<PostgresAction>("public") {
@@ -168,7 +180,7 @@ class SupabaseChatRepository : ChatRepository {
         }
         channel.subscribe()
         try {
-            events.collect { emit(runCatching { load() }.getOrDefault(emptyList())) }
+            events.collect { emit(loadOr("channels", emptyList()) { load() }) }
         } finally {
             runCatching { channel.unsubscribe() }
         }
@@ -195,8 +207,8 @@ class SupabaseChatRepository : ChatRepository {
         val cache = LinkedHashMap<String, ChatMessage>()
         fun snapshot() = cache.values.toList()
 
-        runCatching { loadMessages(channelId) }.getOrNull()
-            ?.forEach { cache[it.messageId] = it }
+        loadOr("messages", emptyList()) { loadMessages(channelId) }
+            .forEach { cache[it.messageId] = it }
         send(snapshot())
 
         val channel = client.channel("channel-$channelId")
@@ -218,11 +230,11 @@ class SupabaseChatRepository : ChatRepository {
         // Realtime rows carry no embeds, so one Postgrest round trip per changed
         // message is what brings the author profile and reaction chips along.
         suspend fun refresh(id: String) {
-            val fresh = runCatching {
+            val fresh = loadOr("message $id", null) {
                 client.from("messages")
                     .select(Columns.raw(MESSAGE_COLUMNS)) { filter { eq("id", id) } }
                     .decodeSingleOrNull<JsonObject>()
-            }.getOrNull() ?: return
+            } ?: return
             cache[id] = ChatMessage.fromJson(fresh)
             send(snapshot())
         }
@@ -379,7 +391,7 @@ class SupabaseChatRepository : ChatRepository {
             .map(CustomEmoji::fromJson)
 
         // A failed load must not kill the screen (e.g. migration not applied yet).
-        emit(runCatching { load() }.getOrDefault(emptyList()))
+        emit(loadOr("emojis", emptyList()) { load() })
 
         val channel = client.channel("emojis-$guildId")
         val events = channel.postgresChangeFlow<PostgresAction>("public") {
@@ -388,7 +400,7 @@ class SupabaseChatRepository : ChatRepository {
         }
         channel.subscribe()
         try {
-            events.collect { emit(runCatching { load() }.getOrDefault(emptyList())) }
+            events.collect { emit(loadOr("emojis", emptyList()) { load() }) }
         } finally {
             runCatching { channel.unsubscribe() }
         }
