@@ -4,6 +4,7 @@ import com.chatnook.app.domain.model.ChatChannel
 import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
 import com.chatnook.app.domain.model.Guild
+import com.chatnook.app.domain.model.OutgoingImage
 import com.chatnook.app.domain.model.Profile
 import kotlinx.coroutines.flow.Flow
 
@@ -41,6 +42,7 @@ interface ChatRepository {
         content: String,
         replyToId: String? = null,
         messageId: String = java.util.UUID.randomUUID().toString(),
+        image: OutgoingImage? = null,
     ): ChatMessage
 
     suspend fun editMessage(messageId: String, content: String)

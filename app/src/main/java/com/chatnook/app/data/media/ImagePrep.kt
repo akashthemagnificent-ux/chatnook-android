@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
+import com.chatnook.app.domain.model.OutgoingImage
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -15,17 +16,6 @@ const val MAX_EDGE = 1600
 
 /** Hard cap the server also enforces (bucket limit is 8 MB, this is the soft target). */
 const val MAX_BYTES = 1_000_000
-
-/** What the repository needs to upload and describe an image. */
-class PreparedImage(
-    val bytes: ByteArray,
-    val width: Int,
-    val height: Int,
-    val filename: String,
-) {
-    val contentType: String = "image/jpeg"
-    val extension: String = "jpg"
-}
 
 /**
  * Fits [width]x[height] inside a [maxEdge] square. Never upscales, never returns 0,
@@ -44,7 +34,7 @@ fun fitInside(width: Int, height: Int, maxEdge: Int = MAX_EDGE): Pair<Int, Int> 
  * [MAX_BYTES]. Returns null when the content cannot be decoded as an image, so the caller
  * can show "could not read that picture" instead of sending a broken message.
  */
-suspend fun prepareImage(context: Context, uri: Uri): PreparedImage? = withContext(Dispatchers.IO) {
+suspend fun prepareImage(context: Context, uri: Uri): OutgoingImage? = withContext(Dispatchers.IO) {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@withContext null
@@ -69,7 +59,7 @@ suspend fun prepareImage(context: Context, uri: Uri): PreparedImage? = withConte
         quality -= 10
         bytes = scaled.toJpeg(quality)
     }
-    val result = PreparedImage(bytes, scaled.width, scaled.height, "image-${System.currentTimeMillis()}.jpg")
+    val result = OutgoingImage(bytes, scaled.width, scaled.height, "image-${System.currentTimeMillis()}.jpg")
     scaled.recycle()
     result
 }

@@ -6,6 +6,7 @@ import com.chatnook.app.domain.model.ChatChannel
 import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
 import com.chatnook.app.domain.model.Guild
+import com.chatnook.app.domain.model.OutgoingImage
 import com.chatnook.app.domain.model.Profile
 import com.chatnook.app.domain.repository.ChatRepository
 import io.github.jan.supabase.auth.auth
@@ -53,7 +54,8 @@ class SupabaseChatRepository : ChatRepository {
             "id,channel_id,author_id,content,type,reply_to_id,created_at,edited_at," +
                 "author:profiles!messages_author_id_fkey(id,username,display_name,avatar_url)," +
                 "reply:messages(content,author_id)," +
-                "reactions(emoji,user_id)"
+                "reactions(emoji,user_id)," +
+                "attachments(id,url,filename,content_type,width,height)"
 
         const val PROFILE_COLUMNS =
             "id,username,display_name,avatar_url,banner_url,accent_color,theme," +
@@ -316,19 +318,50 @@ class SupabaseChatRepository : ChatRepository {
         content: String,
         replyToId: String?,
         messageId: String,
+        image: OutgoingImage?,
     ): ChatMessage {
         val client = Supabase.clientOrNull() ?: error("Supabase not configured")
-        val payload = buildJsonObject {
-            put("id", messageId)
-            put("channel_id", channelId)
-            put("author_id", userId())
-            put("content", content)
-            replyToId?.let { put("reply_to_id", it) }
-        }
 
-        val row = client.from("messages")
-            .insert(payload) { select() }
-            .decodeSingle<JsonObject>()
+        val row = if (image == null) {
+            client.from("messages")
+                .insert(
+                    buildJsonObject {
+                        put("id", messageId)
+                        put("channel_id", channelId)
+                        put("author_id", userId())
+                        put("content", content)
+                        replyToId?.let { put("reply_to_id", it) }
+                    },
+                ) { select() }
+                .decodeSingle<JsonObject>()
+        } else {
+            // One RPC so the attachment row lands in the same transaction as the message:
+            // two REST calls let Realtime deliver the message before its picture exists.
+            val url = uploadImage("attachments", image.bytes, image.extension)
+            client.postgrest.rpc(
+                "send_message",
+                buildJsonObject {
+                    put("p_channel_id", channelId)
+                    put("p_content", content)
+                    put("p_message_id", messageId)
+                    replyToId?.let { put("p_reply_to_id", it) }
+                    put(
+                        "p_attachment",
+                        buildJsonObject {
+                            put("url", url)
+                            put("filename", image.filename)
+                            put("content_type", image.contentType)
+                            put("size_bytes", image.bytes.size)
+                            put("width", image.width)
+                            put("height", image.height)
+                        },
+                    )
+                },
+            )
+            client.from("messages")
+                .select(Columns.raw(MESSAGE_COLUMNS)) { filter { eq("id", messageId) } }
+                .decodeSingle<JsonObject>()
+        }
 
         // The optimistic row has no author embed; the sender's own profile fills it in.
         val mine = runCatching { getProfile(userId()) }.getOrNull()

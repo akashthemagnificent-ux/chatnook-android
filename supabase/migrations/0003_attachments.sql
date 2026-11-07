@@ -74,8 +74,10 @@ begin
     end if;
   end if;
 
+  -- '' rather than null: messages_body requires content for default messages, and an
+  -- image-only message is still a default message. The empty body renders as no text.
   insert into public.messages (id, channel_id, author_id, content, reply_to_id)
-  values (mid, p_channel_id, me, body, p_reply_to_id);
+  values (mid, p_channel_id, me, coalesce(body, ''), p_reply_to_id);
 
   if p_attachment is not null then
     insert into public.attachments

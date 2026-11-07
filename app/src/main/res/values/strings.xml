@@ -25,6 +25,8 @@
     <string name="chat_empty">No messages yet. Send the first one!</string>
     <string name="chat_input_hint">Message #%1$s</string>
     <string name="chat_send">Send</string>
+    <string name="chat_attach_image">Attach image</string>
+    <string name="chat_image">Image</string>
     <string name="chat_back">Back</string>
     <string name="chat_edited">(edited)</string>
     <string name="chat_replying_to">Replying to %1$s</string>

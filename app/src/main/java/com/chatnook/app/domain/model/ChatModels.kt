@@ -22,6 +22,9 @@ internal fun JsonObject.millis(key: String): Long =
 
 internal fun JsonObject.str(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
 
+internal fun JsonObject.int(key: String): Int =
+    this[key]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+
 internal fun JsonObject.strList(key: String): List<String> =
     (this[key] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
 
@@ -57,6 +60,9 @@ data class ChatMessage(
     /** Set when this message quotes another one; lets the chip render without a second query. */
     val replyToContent: String? = null,
     val replyToAuthorId: String? = null,
+    val attachments: List<Attachment> = emptyList(),
+    /** Local file shown while an upload is in flight, before the server URL exists. */
+    val localImageUri: String? = null,
     /** Local delivery state; always [SendState.Sent] for rows that came from the server. */
     val sendState: SendState = SendState.Sent,
 ) {
@@ -64,7 +70,7 @@ data class ChatMessage(
 
     enum class SendState { Pending, Sent, Failed }
 
-    val isDeleted: Boolean get() = content.isEmpty() && messageType != MessageType.system
+    val isDeleted: Boolean get() = content.isEmpty() && attachments.isEmpty() && messageType != MessageType.system
 
     companion object {
         fun fromJson(json: JsonObject): ChatMessage {
@@ -87,10 +93,54 @@ data class ChatMessage(
                     ?: author?.str("username"),
                 senderAvatarUrl = author?.str("avatar_url"),
                 reactions = (json["reactions"] as? JsonArray)?.let(Reaction::group).orEmpty(),
+                attachments = (json["attachments"] as? JsonArray)
+                    ?.mapNotNull { it as? JsonObject }
+                    ?.map(Attachment::fromJson)
+                    .orEmpty(),
                 replyToContent = reply?.str("content"),
                 replyToAuthorId = reply?.str("author_id"),
             )
         }
+    }
+}
+
+/** A locally prepared image waiting to be uploaded with a message. */
+class OutgoingImage(
+    val bytes: ByteArray,
+    val width: Int,
+    val height: Int,
+    val filename: String,
+) {
+    val contentType: String = "image/jpeg"
+    val extension: String = "jpg"
+}
+
+/** One image attached to a message. Dimensions are display hints, not guarantees. */
+data class Attachment(
+    val id: String,
+    val url: String,
+    val filename: String? = null,
+    val contentType: String? = null,
+    val width: Int = 0,
+    val height: Int = 0,
+) {
+    /** Height/width clamped to a sane range so a bad row cannot break the layout. */
+    val aspectRatio: Float
+        get() = if (width > 0 && height > 0) {
+            (height.toFloat() / width).coerceIn(0.25f, 3f)
+        } else {
+            0.75f
+        }
+
+    companion object {
+        fun fromJson(json: JsonObject) = Attachment(
+            id = json.str("id").orEmpty(),
+            url = json.str("url").orEmpty(),
+            filename = json.str("filename"),
+            contentType = json.str("content_type"),
+            width = json.int("width"),
+            height = json.int("height"),
+        )
     }
 }
 

@@ -1,9 +1,12 @@
 package com.chatnook.app.ui.chat
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chatnook.app.data.Repositories
 import com.chatnook.app.data.Supabase
+import com.chatnook.app.data.media.prepareImage
 import com.chatnook.app.domain.model.ChatChannel
 import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
@@ -134,6 +137,23 @@ class ChatViewModel(
         // Cleared at once: the bubble is already on screen and carries the text for retry.
         _draft.value = ""
         timeline(channelId).send(content, replyToId)
+    }
+
+    /**
+     * Downscales [uri] on the IO dispatcher, then sends it with whatever is in the draft.
+     * The bubble appears immediately with the local file so the picker feels instant.
+     */
+    fun sendImage(channelId: String, context: Context, uri: Uri) {
+        val caption = _draft.value.trim()
+        viewModelScope.launch {
+            val image = prepareImage(context, uri)
+            if (image == null) {
+                _notice.value = "Could not read that picture"
+                return@launch
+            }
+            _draft.value = ""
+            timeline(channelId).send(caption, null, image, uri.toString())
+        }
     }
 
     fun edit(messageId: String, content: String) {
