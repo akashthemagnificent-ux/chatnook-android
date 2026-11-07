@@ -39,6 +39,21 @@ android {
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseKey\"")
     }
 
+    signingConfigs {
+        // Real upload key comes from CI secrets (CI decodes the .jks to /tmp) or from
+        // local.properties for local release builds. Absent both, we fall back to debug
+        // so the project still builds on a fresh clone.
+        val storePath = credential("CHATNOOK_KEYSTORE_PATH")
+        if (storePath.isNotEmpty()) {
+            create("release") {
+                storeFile = file(storePath)
+                storePassword = credential("CHATNOOK_KEYSTORE_PASSWORD")
+                keyAlias = credential("CHATNOOK_KEY_ALIAS")
+                keyPassword = credential("CHATNOOK_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -47,9 +62,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // Prototype APKs ship directly to friends, so release builds are signed
-            // with the debug keystore until a real upload key is provisioned via CI secrets.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release")
+                ?: signingConfigs.getByName("debug")
         }
     }
 
@@ -94,6 +108,8 @@ dependencies {
     implementation(libs.supabase.postgrest)
     implementation(libs.supabase.realtime)
     implementation(libs.supabase.storage)
+    // Ktor needs an explicit engine on Android; supabase-kt only pulls ktor-client-core.
+    implementation(libs.ktor.client.okhttp)
 
     testImplementation(libs.junit)
 

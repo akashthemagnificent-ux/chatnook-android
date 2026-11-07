@@ -28,7 +28,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -48,7 +51,10 @@ fun AuthScreen(viewModel: AuthViewModel, modifier: Modifier = Modifier) {
             .background(ChatNookColors.ChatNookGradient)
             .verticalScroll(rememberScrollState())
             .imePadding()
-            .padding(horizontal = 28.dp, vertical = 48.dp),
+            .padding(horizontal = 28.dp, vertical = 48.dp)
+            // Expose testTags as resource-ids so UI automation has stable handles;
+            // without this both text fields are indistinguishable editable nodes.
+            .semantics { testTagsAsResourceId = true },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(Modifier.height(32.dp))
@@ -71,7 +77,7 @@ fun AuthScreen(viewModel: AuthViewModel, modifier: Modifier = Modifier) {
         OutlinedTextField(
             value = ui.email,
             onValueChange = viewModel::onEmailChange,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().testTag("auth_email"),
             label = { Text(stringResource(R.string.auth_email_hint)) },
             singleLine = true,
             enabled = !ui.isLoading,
@@ -84,7 +90,7 @@ fun AuthScreen(viewModel: AuthViewModel, modifier: Modifier = Modifier) {
         OutlinedTextField(
             value = ui.password,
             onValueChange = viewModel::onPasswordChange,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().testTag("auth_password"),
             label = { Text(stringResource(R.string.auth_password_hint)) },
             singleLine = true,
             enabled = !ui.isLoading,
