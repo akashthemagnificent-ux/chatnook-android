@@ -278,6 +278,40 @@ def run(created_users, created_guilds):
                        {"channel_id": cid, "author_id": b_uid, "content": "from b"})
         check("member can post", st == 201, st)
 
+    print("unread")
+    st, me = b.get(f"/rest/v1/profiles?select=username&id=eq.{b_uid}")
+    b_name = me[0]["username"] if st == 200 and me else None
+    st, counts = b.rpc("channel_unread_counts", {"p_guild_id": gid, "p_mention": b_name})
+    check("member sees unread", st == 200 and counts and counts[0]["unread"] > 0, f"{st} {counts}")
+    # Only b's own "from b" counts for a; the 60+ messages a posted are its own.
+    st, mine = a.rpc("channel_unread_counts", {"p_guild_id": gid, "p_mention": b_name})
+    check("own messages are not unread",
+          st == 200 and mine and mine[0]["unread"] == 1, f"{st} {mine}")
+
+    a.post("/rest/v1/messages",
+           {"channel_id": cid, "author_id": a_uid, "content": f"hey @{b_name} look"})
+    st, counts = b.rpc("channel_unread_counts", {"p_guild_id": gid, "p_mention": b_name})
+    check("mention counted", st == 200 and counts and counts[0]["mentions"] == 1, f"{st} {counts}")
+
+    st, last = b.get(f"/rest/v1/messages?select=id,created_at&channel_id=eq.{cid}"
+                     "&order=created_at.desc&limit=1")
+    if st == 200 and last:
+        b.post("/rest/v1/read_states", {
+            "user_id": b_uid,
+            "channel_id": cid,
+            "last_read_message_id": last[0]["id"],
+            "last_read_at": last[0]["created_at"],
+        })
+    st, counts = b.rpc("channel_unread_counts", {"p_guild_id": gid, "p_mention": b_name})
+    check("mark read clears the badge",
+          st == 200 and counts and counts[0]["unread"] == 0 and counts[0]["mentions"] == 0,
+          f"{st} {counts}")
+
+    a.post("/rest/v1/messages", {"channel_id": cid, "author_id": a_uid, "content": "after read"})
+    st, counts = b.rpc("channel_unread_counts", {"p_guild_id": gid, "p_mention": b_name})
+    check("new message after read shows 1", st == 200 and counts and counts[0]["unread"] == 1,
+          f"{st} {counts}")
+
     print("DMs")
     st, dm = a.rpc("find_or_create_dm", {"other_user": b_uid})
     check("find_or_create_dm rpc", st == 200 and isinstance(dm, str), f"{st} {dm}")

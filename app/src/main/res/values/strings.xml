@@ -40,6 +40,10 @@
     <string name="chat_yesterday">Yesterday</string>
     <string name="chat_new_messages">%1$d new</string>
     <string name="chat_failed_retry">Failed to send · Tap to retry</string>
+    <string name="chat_online">%1$d online</string>
+    <string name="chat_typing_one">%1$s is typing…</string>
+    <string name="chat_typing_two">%1$s and %2$s are typing…</string>
+    <string name="chat_typing_many">Several people are typing…</string>
     <string name="chat_delete_title">Delete message?</string>
     <string name="chat_delete_body">This cannot be undone.</string>
     <string name="chat_delete_confirm">Delete</string>

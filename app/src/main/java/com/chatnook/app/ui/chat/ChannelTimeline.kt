@@ -3,6 +3,7 @@ package com.chatnook.app.ui.chat
 import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.OutgoingImage
 import com.chatnook.app.domain.model.Profile
+import com.chatnook.app.domain.model.TypingUser
 import com.chatnook.app.domain.repository.ChatRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +32,7 @@ class ChannelTimeline(
 ) {
     private companion object {
         const val PAGE_SIZE = 50
+        const val TYPING_PING_MS = 3_000L
     }
 
     private val live: StateFlow<List<ChatMessage>> =
@@ -48,6 +50,15 @@ class ChannelTimeline(
 
     private val _loadingOlder = MutableStateFlow(false)
     val loadingOlder: StateFlow<Boolean> = _loadingOlder.asStateFlow()
+
+    /** Broadcast pings from everyone else in the channel; expires on its own. */
+    val typing: StateFlow<List<TypingUser>> =
+        repository.typingUsers(channelId)
+            .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // One ping per keystroke would be a websocket frame per keystroke.
+    private var lastTypingPing = 0L
+    private var lastReadId: String? = null
 
     val messages: StateFlow<List<ChatMessage>> =
         combine(older, live, local) { old, fresh, pending ->
@@ -130,6 +141,24 @@ class ChannelTimeline(
         val failed = local.value[messageId] ?: return
         local.update { it + (messageId to failed.copy(sendState = ChatMessage.SendState.Pending)) }
         deliver(failed)
+    }
+
+    /** Throttled to one ping every [TYPING_PING_MS]; typing is a hint, not a log. */
+    fun notifyTyping() {
+        val now = System.currentTimeMillis()
+        if (now - lastTypingPing < TYPING_PING_MS) return
+        val name = myProfile()?.authorLabel ?: return
+        lastTypingPing = now
+        scope.launch { repository.sendTyping(channelId, name) }
+    }
+
+    /** Records the read position once per distinct message. */
+    fun markRead(message: ChatMessage?) {
+        val id = message?.messageId ?: return
+        val at = message.createdAtIso ?: return
+        if (id == lastReadId) return
+        lastReadId = id
+        scope.launch { runCatching { repository.markRead(channelId, id, at) } }
     }
 
     private fun deliver(message: ChatMessage) {

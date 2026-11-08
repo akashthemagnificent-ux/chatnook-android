@@ -2,12 +2,17 @@ package com.chatnook.app.data.repository
 
 import android.util.Log
 import com.chatnook.app.data.Supabase
+import com.chatnook.app.data.realtime.TypingSession
 import com.chatnook.app.domain.model.ChatChannel
 import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
 import com.chatnook.app.domain.model.Guild
 import com.chatnook.app.domain.model.OutgoingImage
 import com.chatnook.app.domain.model.Profile
+import com.chatnook.app.domain.model.TypingUser
+import com.chatnook.app.domain.model.UnreadState
+import com.chatnook.app.domain.model.int
+import com.chatnook.app.domain.model.str
 import com.chatnook.app.domain.repository.ChatRepository
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
@@ -17,15 +22,19 @@ import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.PostgresChangeFilter
+import io.github.jan.supabase.realtime.RealtimeChannel
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
+import io.github.jan.supabase.realtime.presenceDataFlow
 import io.github.jan.supabase.realtime.realtime
 import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -386,6 +395,108 @@ class SupabaseChatRepository : ChatRepository {
     override suspend fun deleteMessage(messageId: String) {
         val client = Supabase.clientOrNull() ?: error("Supabase not configured")
         client.from("messages").delete { filter { eq("id", messageId) } }
+    }
+
+    // ------------------------------------------------------- presence & unread
+
+    private val typingSessions = java.util.concurrent.ConcurrentHashMap<String, TypingSession>()
+
+    override fun typingUsers(channelId: String): Flow<List<TypingUser>> {
+        val client = Supabase.clientOrNull() ?: return flowOf(emptyList())
+        val me = client.auth.currentUserOrNull()?.id ?: return flowOf(emptyList())
+        return typingSessions
+            .getOrPut(channelId) { TypingSession(client, channelId, me) }
+            .users
+    }
+
+    override suspend fun sendTyping(channelId: String, name: String) {
+        val client = Supabase.clientOrNull() ?: return
+        val me = client.auth.currentUserOrNull()?.id ?: return
+        typingSessions
+            .getOrPut(channelId) { TypingSession(client, channelId, me) }
+            .ping(name)
+    }
+
+    override suspend fun markRead(channelId: String, messageId: String, atIso: String) {
+        val client = Supabase.clientOrNull() ?: return
+        client.from("read_states").upsert(
+            buildJsonObject {
+                put("user_id", userId())
+                put("channel_id", channelId)
+                put("last_read_message_id", messageId)
+                put("last_read_at", atIso)
+            },
+        ) { onConflict = "user_id,channel_id" }
+    }
+
+    override fun getUnreadCounts(
+        guildId: String,
+        mention: String?,
+    ): Flow<Map<String, UnreadState>> = flow {
+        val client = Supabase.clientOrNull() ?: return@flow
+
+        suspend fun load(): Map<String, UnreadState> = client.postgrest
+            .rpc(
+                "channel_unread_counts",
+                buildJsonObject {
+                    put("p_guild_id", guildId)
+                    put("p_mention", mention)
+                },
+            )
+            .decodeList<JsonObject>()
+            .mapNotNull { row ->
+                row.str("channel_id")?.let { it to UnreadState(row.int("unread"), row.int("mentions")) }
+            }
+            .toMap()
+
+        emit(loadOr("unread", emptyMap()) { load() })
+
+        // RLS scopes both streams to what this user may read, so one unfiltered
+        // subscription is enough to know that some channel's badge changed.
+        val channel = client.channel("unread-$guildId-${userId()}")
+        val events = merge(
+            channel.postgresChangeFlow<PostgresAction.Insert>("public") { table = "messages" },
+            channel.postgresChangeFlow<PostgresAction>("public") { table = "read_states" },
+        )
+        channel.subscribe()
+        try {
+            events.collect { emit(loadOr("unread", emptyMap()) { load() }) }
+        } finally {
+            runCatching { channel.unsubscribe() }
+        }
+    }
+
+    override fun getOnlineUsers(guildId: String): Flow<Set<String>> = channelFlow {
+        val client = Supabase.clientOrNull() ?: return@channelFlow
+        val me = userId()
+        val channel = client.channel("presence-$guildId") {
+            // One key per account, so the same user on two devices is one dot.
+            presence { key = me }
+        }
+        val states = channel.presenceDataFlow<JsonObject>()
+        coroutineScope {
+            // The SDK only puts presence in the join payload when a callback exists at
+            // subscribe time, so the collector has to start first and run undispatched.
+            val collector = launch(start = CoroutineStart.UNDISPATCHED) {
+                states.collect { presences ->
+                    send(presences.mapNotNull { it.str("user_id") }.toSet())
+                }
+            }
+            channel.subscribe()
+            // subscribe() returns while the join is still in flight, and track() refuses
+            // to run before the server has acknowledged it.
+            channel.status.first { it == RealtimeChannel.Status.SUBSCRIBED }
+            try {
+                // The presence state can arrive a moment after the join; seed self so
+                // the count is never wrongly zero.
+                send(setOf(me))
+                channel.track(buildJsonObject { put("user_id", me) })
+                collector.join()
+            } finally {
+                runCatching { channel.untrack() }
+                runCatching { channel.unsubscribe() }
+            }
+        }
     }
 
     override suspend fun toggleReaction(messageId: String, emoji: String) {
