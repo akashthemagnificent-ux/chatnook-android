@@ -9,21 +9,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.chatnook.app.ui.auth.AuthScreen
 import com.chatnook.app.ui.auth.AuthViewModel
 import com.chatnook.app.ui.chat.ChannelListScreen
 import com.chatnook.app.ui.chat.ChatScreen
 import com.chatnook.app.ui.chat.ChatViewModel
+import com.chatnook.app.ui.chat.MembersScreen
 import com.chatnook.app.ui.chat.ProfileScreen
 import com.chatnook.app.ui.theme.ChatNookTheme
 import io.github.jan.supabase.auth.status.SessionStatus
 
 private const val ROUTE_CHANNELS = "channels"
-private const val ROUTE_CHAT = "chat/{channelId}/{channelName}"
+private const val ROUTE_CHAT = "chat/{channelId}/{channelName}?dm={dm}"
+private const val ROUTE_MEMBERS = "members"
 private const val ROUTE_PROFILE = "profile"
+
+private fun chatRoute(channelId: String, channelName: String, isDm: Boolean = false) =
+    "chat/$channelId/$channelName?dm=$isDm"
 
 @Composable
 fun ChatNookApp() {
@@ -61,19 +68,36 @@ private fun SignedInRoutes(authViewModel: AuthViewModel) {
             ChannelListScreen(
                 viewModel = chatViewModel,
                 onOpenChannel = { channelId, channelName ->
-                    navController.navigate("chat/$channelId/$channelName")
+                    navController.navigate(chatRoute(channelId, channelName))
                 },
+                onOpenDm = { channelId, name ->
+                    navController.navigate(chatRoute(channelId, name, isDm = true))
+                },
+                onOpenMembers = { navController.navigate(ROUTE_MEMBERS) },
                 onOpenProfile = { navController.navigate(ROUTE_PROFILE) },
             )
         }
-        composable(ROUTE_CHAT) { entry ->
+        composable(
+            route = ROUTE_CHAT,
+            arguments = listOf(navArgument("dm") { type = NavType.BoolType; defaultValue = false }),
+        ) { entry ->
             val channelId = entry.arguments?.getString("channelId").orEmpty()
             val channelName = entry.arguments?.getString("channelName").orEmpty()
             ChatScreen(
                 viewModel = chatViewModel,
                 channelId = channelId,
                 channelName = channelName,
+                isDm = entry.arguments?.getBoolean("dm") == true,
                 onBack = { navController.popBackStack() },
+            )
+        }
+        composable(ROUTE_MEMBERS) {
+            MembersScreen(
+                viewModel = chatViewModel,
+                onBack = { navController.popBackStack() },
+                onMessage = { channelId, name ->
+                    navController.navigate(chatRoute(channelId, name, isDm = true))
+                },
             )
         }
         composable(ROUTE_PROFILE) {

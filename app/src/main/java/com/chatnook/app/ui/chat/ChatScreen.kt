@@ -103,6 +103,7 @@ fun ChatScreen(
     viewModel: ChatViewModel,
     channelId: String,
     channelName: String,
+    isDm: Boolean = false,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -208,6 +209,7 @@ fun ChatScreen(
         ) {
             ChatHeader(
                 channelName = channelName,
+                isDm = isDm,
                 typing = typing,
                 online = online.size,
                 onBack = onBack,
@@ -301,6 +303,7 @@ fun ChatScreen(
             MessageInput(
                 draft = draft,
                 channelName = channelName,
+                isDm = isDm,
                 isEditing = editing != null,
                 onDraftChange = { text ->
                     viewModel.updateDraft(text)
@@ -348,6 +351,7 @@ fun ChatScreen(
 @Composable
 private fun ChatHeader(
     channelName: String,
+    isDm: Boolean,
     typing: List<TypingUser>,
     online: Int,
     onBack: () -> Unit,
@@ -365,7 +369,7 @@ private fun ChatHeader(
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "# $channelName",
+                text = if (isDm) "@ $channelName" else "# $channelName",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
@@ -695,6 +699,7 @@ private fun ComposeBanner(label: String, onCancel: () -> Unit) {
 private fun MessageInput(
     draft: String,
     channelName: String,
+    isDm: Boolean,
     isEditing: Boolean,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
@@ -729,7 +734,14 @@ private fun MessageInput(
             value = draft,
             onValueChange = onDraftChange,
             modifier = Modifier.weight(1f).testTag("chat_input"),
-            placeholder = { Text(stringResource(R.string.chat_input_hint, channelName)) },
+            placeholder = {
+                Text(
+                    stringResource(
+                        if (isDm) R.string.chat_input_hint_dm else R.string.chat_input_hint,
+                        channelName,
+                    ),
+                )
+            },
             maxLines = 4,
         )
         IconButton(

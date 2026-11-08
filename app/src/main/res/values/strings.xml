@@ -62,6 +62,28 @@
     <string name="channels_add_emoji">Upload emoji</string>
     <string name="channels_emoji_name">Emoji name</string>
 
+    <!-- Direct messages -->
+    <string name="home_title">Direct messages</string>
+    <string name="dm_empty">No direct messages yet. Open a member and say hello.</string>
+    <string name="dm_no_messages">No messages yet</string>
+    <string name="chat_input_hint_dm">Message @%1$s</string>
+
+    <!-- Members -->
+    <string name="members_title">Members</string>
+    <string name="members_empty">No members yet</string>
+    <string name="members_owner_badge">OWNER</string>
+    <string name="members_message">Message</string>
+    <string name="members_online">Online</string>
+    <string name="members_offline">Offline</string>
+    <plurals name="members_count">
+        <item quantity="one">%1$d member</item>
+        <item quantity="other">%1$d members</item>
+    </plurals>
+    <plurals name="home_conversations">
+        <item quantity="one">%1$d conversation</item>
+        <item quantity="other">%1$d conversations</item>
+    </plurals>
+
     <!-- Profile / Nitro cosmetics -->
     <string name="profile_title">Profile</string>
     <string name="profile_display_name">Display name</string>

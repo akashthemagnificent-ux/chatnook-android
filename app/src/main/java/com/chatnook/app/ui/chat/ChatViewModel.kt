@@ -10,11 +10,15 @@ import com.chatnook.app.data.media.prepareImage
 import com.chatnook.app.domain.model.ChatChannel
 import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
+import com.chatnook.app.domain.model.DmSummary
 import com.chatnook.app.domain.model.Guild
+import com.chatnook.app.domain.model.MemberGroup
 import com.chatnook.app.domain.model.Profile
 import com.chatnook.app.domain.model.ProfileTheme
 import com.chatnook.app.domain.model.TypingUser
 import com.chatnook.app.domain.model.UnreadState
+import com.chatnook.app.domain.model.groupMembers
+import com.chatnook.app.domain.model.sortDms
 import com.chatnook.app.domain.model.unreadBadges
 import com.chatnook.app.domain.repository.ChatRepository
 import io.github.jan.supabase.auth.auth
@@ -58,14 +62,29 @@ class ChatViewModel(
     /** Channel the chat screen is showing; its badge stays hidden while it is open. */
     private val _openChannelId = MutableStateFlow<String?>(null)
 
-    /** Unread badges for the selected guild, minus the channel being read. */
-    val unread: StateFlow<Map<String, UnreadState>> = combine(
-        _selectedGuildId.filterNotNull().distinctUntilChanged(),
-        myProfile.map { it?.username }.distinctUntilChanged(),
-    ) { guildId, mention -> guildId to mention }
-        .flatMapLatest { (guildId, mention) -> repository.getUnreadCounts(guildId, mention) }
+    /** Unread badges for every reachable channel, minus the channel being read. */
+    val unread: StateFlow<Map<String, UnreadState>> = myProfile
+        .map { it?.username }
+        .distinctUntilChanged()
+        .flatMapLatest { repository.getUnreadCounts(it) }
         .combine(_openChannelId) { counts, open -> unreadBadges(counts, open) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** True while the rail's home button is selected, which shows the DM list. */
+    private val _home = MutableStateFlow(false)
+    val home: StateFlow<Boolean> = _home.asStateFlow()
+
+    val dms: StateFlow<List<DmSummary>> = repository.getDms()
+        .map(::sortDms)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Members of the selected guild, grouped the way the list renders them. */
+    val memberGroups: StateFlow<List<MemberGroup>> = _selectedGuildId
+        .filterNotNull()
+        .distinctUntilChanged()
+        .flatMapLatest { repository.getMembers(it) }
+        .map(::groupMembers)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Members connected to the selected guild right now. */
     val onlineUsers: StateFlow<Set<String>> = _selectedGuildId
@@ -112,8 +131,19 @@ class ChatViewModel(
     }
 
     fun selectGuild(guildId: String) {
+        _home.value = false
         _selectedGuildId.value = guildId
     }
+
+    fun openHome() {
+        _home.value = true
+    }
+
+    /** Finds or creates the DM with [userId]; null when the server refuses. */
+    suspend fun openDm(userId: String): String? =
+        runCatching { repository.openDm(userId) }
+            .onFailure { _notice.value = "Could not open the DM: ${it.friendly()}" }
+            .getOrNull()
 
     fun messages(channelId: String): StateFlow<List<ChatMessage>> = timeline(channelId).messages
 
