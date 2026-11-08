@@ -39,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
@@ -53,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatnook.app.R
 import com.chatnook.app.domain.model.ChatChannel
 import com.chatnook.app.domain.model.Guild
+import com.chatnook.app.domain.model.UnreadState
 import com.chatnook.app.domain.model.gradientStops
 import com.chatnook.app.ui.theme.ChatNookColors
 
@@ -68,6 +70,7 @@ fun ChannelListScreen(
     val selectedGuildId by viewModel.selectedGuildId.collectAsStateWithLifecycle()
     val profile by viewModel.myProfile.collectAsStateWithLifecycle()
     val notice by viewModel.notice.collectAsStateWithLifecycle()
+    val unread by viewModel.unread.collectAsStateWithLifecycle()
 
     var dialog by remember { mutableStateOf<HomeDialog?>(null) }
     val selectedGuild = guilds.firstOrNull { it.guildId == selectedGuildId }
@@ -166,6 +169,7 @@ fun ChannelListScreen(
                         items(channels, key = { it.channelId }) { channel ->
                             ChannelRow(
                                 channel = channel,
+                                unread = unread[channel.channelId] ?: UnreadState.None,
                                 onClick = { onOpenChannel(channel.channelId, channel.name) },
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
@@ -335,7 +339,7 @@ private fun Header(
 }
 
 @Composable
-private fun ChannelRow(channel: ChatChannel, onClick: () -> Unit) {
+private fun ChannelRow(channel: ChatChannel, unread: UnreadState, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -354,6 +358,7 @@ private fun ChannelRow(channel: ChatChannel, onClick: () -> Unit) {
             Text(
                 text = channel.name,
                 style = MaterialTheme.typography.titleSmall,
+                fontWeight = if (unread.visible) FontWeight.Bold else FontWeight.Normal,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             channel.description?.let { description ->
@@ -366,7 +371,26 @@ private fun ChannelRow(channel: ChatChannel, onClick: () -> Unit) {
                 )
             }
         }
+        UnreadBadge(unread, tag = channel.name)
     }
+}
+
+/** Discord's two badges: a red @count for mentions, a muted count for the rest. */
+@Composable
+private fun UnreadBadge(unread: UnreadState, tag: String) {
+    if (!unread.visible) return
+    val mentions = unread.mentions > 0
+    Text(
+        text = if (mentions) "@${unread.mentions.coerceAtMost(99)}" else unread.label,
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = Color.White,
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(if (mentions) ChatNookColors.Red else ChatNookColors.DarkHover)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .testTag("unread_$tag"),
+    )
 }
 
 @Composable

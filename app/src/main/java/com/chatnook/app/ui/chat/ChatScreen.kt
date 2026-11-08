@@ -49,6 +49,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -82,7 +83,9 @@ import com.chatnook.app.R
 import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
 import com.chatnook.app.domain.model.Reaction
+import com.chatnook.app.domain.model.TypingUser
 import com.chatnook.app.domain.model.isCustomEmoji
+import com.chatnook.app.domain.model.mentionsUser
 import com.chatnook.app.ui.theme.ChatNookColors
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -108,6 +111,9 @@ fun ChatScreen(
     val draft by viewModel.draft.collectAsStateWithLifecycle()
     val guildId by viewModel.selectedGuildId.collectAsStateWithLifecycle()
     val customEmojis by viewModel.emojis(guildId).collectAsStateWithLifecycle()
+    val typing by viewModel.typing(channelId).collectAsStateWithLifecycle()
+    val online by viewModel.onlineUsers.collectAsStateWithLifecycle()
+    val myUsername = viewModel.myProfile.collectAsStateWithLifecycle().value?.username
     val myId = viewModel.currentUserId
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -137,11 +143,19 @@ fun ChatScreen(
         }
     }
 
+    // The list hides this channel's badge while it is open; the server gets the write
+    // once the newest row is actually on screen.
+    DisposableEffect(channelId) {
+        viewModel.openChannel(channelId)
+        onDispose { viewModel.closeChannel(channelId) }
+    }
+
     // Reaching the newest row by hand clears the "new messages" counter.
     LaunchedEffect(atBottom, messageCount) {
         if (atBottom) {
             newBelow = 0
             seenCount = messageCount
+            viewModel.markRead(channelId, messages.lastOrNull())
         }
     }
 
@@ -192,7 +206,12 @@ fun ChatScreen(
                 .imePadding()
                 .semantics { testTagsAsResourceId = true },
         ) {
-            ChatHeader(channelName = channelName, onBack = onBack)
+            ChatHeader(
+                channelName = channelName,
+                typing = typing,
+                online = online.size,
+                onBack = onBack,
+            )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -225,6 +244,8 @@ fun ChatScreen(
                                 is TimelineItem.Msg -> MessageRow(
                                     message = item.message,
                                     isMine = item.message.senderId == myId,
+                                    mentioned = item.message.senderId != myId &&
+                                        mentionsUser(item.message.content, myUsername),
                                     grouped = item.grouped,
                                     onReply = { replyTo = item.message },
                                     onEdit = { editing = item.message },
@@ -281,7 +302,10 @@ fun ChatScreen(
                 draft = draft,
                 channelName = channelName,
                 isEditing = editing != null,
-                onDraftChange = viewModel::updateDraft,
+                onDraftChange = { text ->
+                    viewModel.updateDraft(text)
+                    viewModel.notifyTyping(channelId)
+                },
                 onSend = {
                     val target = editing
                     if (target != null) {
@@ -322,7 +346,12 @@ fun ChatScreen(
 }
 
 @Composable
-private fun ChatHeader(channelName: String, onBack: () -> Unit) {
+private fun ChatHeader(
+    channelName: String,
+    typing: List<TypingUser>,
+    online: Int,
+    onBack: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -334,14 +363,37 @@ private fun ChatHeader(channelName: String, onBack: () -> Unit) {
                 tint = MaterialTheme.colorScheme.onSurface,
             )
         }
-        Text(
-            text = "# $channelName",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "# $channelName",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = typingLabel(typing) ?: stringResource(R.string.chat_online, online),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (typing.isEmpty()) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    ChatNookColors.Green
+                },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.testTag("chat_subtitle"),
+            )
+        }
     }
+}
+
+/** Discord's wording: one name, two names, then "several". */
+@Composable
+private fun typingLabel(typing: List<TypingUser>): String? = when (typing.size) {
+    0 -> null
+    1 -> stringResource(R.string.chat_typing_one, typing[0].name)
+    2 -> stringResource(R.string.chat_typing_two, typing[0].name, typing[1].name)
+    else -> stringResource(R.string.chat_typing_many)
 }
 
 @Composable
@@ -385,6 +437,7 @@ private fun parseDayKey(key: String, zone: TimeZone): Long {
 private fun MessageRow(
     message: ChatMessage,
     isMine: Boolean,
+    mentioned: Boolean,
     grouped: Boolean,
     myId: String,
     onReply: () -> Unit,
@@ -402,6 +455,9 @@ private fun MessageRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(6.dp))
+            .background(
+                if (mentioned) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent,
+            )
             .combinedClickable(onClick = {}, onLongClick = { menuOpen = true })
             .alpha(if (message.sendState == ChatMessage.SendState.Pending) 0.6f else 1f)
             .padding(vertical = if (grouped) 1.dp else 6.dp, horizontal = 4.dp),

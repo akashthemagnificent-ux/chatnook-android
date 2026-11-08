@@ -13,6 +13,9 @@ import com.chatnook.app.domain.model.CustomEmoji
 import com.chatnook.app.domain.model.Guild
 import com.chatnook.app.domain.model.Profile
 import com.chatnook.app.domain.model.ProfileTheme
+import com.chatnook.app.domain.model.TypingUser
+import com.chatnook.app.domain.model.UnreadState
+import com.chatnook.app.domain.model.unreadBadges
 import com.chatnook.app.domain.repository.ChatRepository
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -20,8 +23,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -48,6 +54,25 @@ class ChatViewModel(
 
     val myProfile: StateFlow<Profile?> = repository.getMyProfile()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Channel the chat screen is showing; its badge stays hidden while it is open. */
+    private val _openChannelId = MutableStateFlow<String?>(null)
+
+    /** Unread badges for the selected guild, minus the channel being read. */
+    val unread: StateFlow<Map<String, UnreadState>> = combine(
+        _selectedGuildId.filterNotNull().distinctUntilChanged(),
+        myProfile.map { it?.username }.distinctUntilChanged(),
+    ) { guildId, mention -> guildId to mention }
+        .flatMapLatest { (guildId, mention) -> repository.getUnreadCounts(guildId, mention) }
+        .combine(_openChannelId) { counts, open -> unreadBadges(counts, open) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** Members connected to the selected guild right now. */
+    val onlineUsers: StateFlow<Set<String>> = _selectedGuildId
+        .filterNotNull()
+        .distinctUntilChanged()
+        .flatMapLatest { repository.getOnlineUsers(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     // One timeline per channel, created the first time it is opened. It keeps the live
     // window, loaded older pages and optimistic rows together.
@@ -101,6 +126,25 @@ class ChatViewModel(
 
     fun retry(messageId: String, channelId: String) {
         timeline(channelId).retry(messageId)
+    }
+
+    fun typing(channelId: String): StateFlow<List<TypingUser>> = timeline(channelId).typing
+
+    fun notifyTyping(channelId: String) {
+        timeline(channelId).notifyTyping()
+    }
+
+    /** Called whenever the newest message is on screen; a no-op for an unread id. */
+    fun markRead(channelId: String, message: ChatMessage?) {
+        timeline(channelId).markRead(message)
+    }
+
+    fun openChannel(channelId: String) {
+        _openChannelId.value = channelId
+    }
+
+    fun closeChannel(channelId: String) {
+        if (_openChannelId.value == channelId) _openChannelId.value = null
     }
 
     fun updateDraft(text: String) {

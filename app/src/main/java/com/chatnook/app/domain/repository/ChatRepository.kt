@@ -6,6 +6,8 @@ import com.chatnook.app.domain.model.CustomEmoji
 import com.chatnook.app.domain.model.Guild
 import com.chatnook.app.domain.model.OutgoingImage
 import com.chatnook.app.domain.model.Profile
+import com.chatnook.app.domain.model.TypingUser
+import com.chatnook.app.domain.model.UnreadState
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -48,6 +50,21 @@ interface ChatRepository {
     suspend fun editMessage(messageId: String, content: String)
 
     suspend fun deleteMessage(messageId: String)
+
+    /** Who is typing in [channelId] right now; entries expire five seconds after a ping. */
+    fun typingUsers(channelId: String): Flow<List<TypingUser>>
+
+    /** Announces the signed-in user as typing; the caller throttles the pings. */
+    suspend fun sendTyping(channelId: String, name: String)
+
+    /** Records that the user has read the channel up to [messageId] at [atIso]. */
+    suspend fun markRead(channelId: String, messageId: String, atIso: String)
+
+    /** Unread and mention counts per channel of a guild, kept live. */
+    fun getUnreadCounts(guildId: String, mention: String?): Flow<Map<String, UnreadState>>
+
+    /** Ids of the members currently connected to a guild, the caller included. */
+    fun getOnlineUsers(guildId: String): Flow<Set<String>>
 
     /** Adds the caller's reaction, or removes it when it already exists. */
     suspend fun toggleReaction(messageId: String, emoji: String)
