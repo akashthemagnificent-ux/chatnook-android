@@ -6,7 +6,9 @@ import com.chatnook.app.data.realtime.TypingSession
 import com.chatnook.app.domain.model.ChatChannel
 import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
+import com.chatnook.app.domain.model.DmSummary
 import com.chatnook.app.domain.model.Guild
+import com.chatnook.app.domain.model.Member
 import com.chatnook.app.domain.model.OutgoingImage
 import com.chatnook.app.domain.model.Profile
 import com.chatnook.app.domain.model.TypingUser
@@ -429,17 +431,15 @@ class SupabaseChatRepository : ChatRepository {
         ) { onConflict = "user_id,channel_id" }
     }
 
-    override fun getUnreadCounts(
-        guildId: String,
-        mention: String?,
-    ): Flow<Map<String, UnreadState>> = flow {
+    override fun getUnreadCounts(mention: String?): Flow<Map<String, UnreadState>> = flow {
         val client = Supabase.clientOrNull() ?: return@flow
 
         suspend fun load(): Map<String, UnreadState> = client.postgrest
             .rpc(
                 "channel_unread_counts",
                 buildJsonObject {
-                    put("p_guild_id", guildId)
+                    // No guild filter: the function already scopes to every channel the
+                    // user can reach, DMs included.
                     put("p_mention", mention)
                 },
             )
@@ -453,7 +453,7 @@ class SupabaseChatRepository : ChatRepository {
 
         // RLS scopes both streams to what this user may read, so one unfiltered
         // subscription is enough to know that some channel's badge changed.
-        val channel = client.channel("unread-$guildId-${userId()}")
+        val channel = client.channel("unread-${userId()}")
         val events = merge(
             channel.postgresChangeFlow<PostgresAction.Insert>("public") { table = "messages" },
             channel.postgresChangeFlow<PostgresAction>("public") { table = "read_states" },
@@ -464,6 +464,68 @@ class SupabaseChatRepository : ChatRepository {
         } finally {
             runCatching { channel.unsubscribe() }
         }
+    }
+
+    override fun getMembers(guildId: String): Flow<List<Member>> = flow {
+        val client = Supabase.clientOrNull() ?: return@flow
+
+        suspend fun load(): List<Member> = client.from("guild_members")
+            .select(
+                Columns.raw(
+                    "user_id,nickname," +
+                        "profile:profiles(id,username,display_name,avatar_url,banner_url," +
+                        "custom_status,badges)," +
+                        "member_roles(role:roles(id,name,color,position))," +
+                        "guild:guilds(owner_id)",
+                ),
+            ) { filter { eq("guild_id", guildId) } }
+            .decodeList<JsonObject>()
+            .mapNotNull(Member::fromJson)
+
+        emit(loadOr("members", emptyList()) { load() })
+
+        val channel = client.channel("members-$guildId")
+        val events = channel.postgresChangeFlow<PostgresAction>("public") {
+            table = "guild_members"
+            filter("guild_id", FilterOperator.EQ, guildId)
+        }
+        channel.subscribe()
+        try {
+            events.collect { emit(loadOr("members", emptyList()) { load() }) }
+        } finally {
+            runCatching { channel.unsubscribe() }
+        }
+    }
+
+    override fun getDms(): Flow<List<DmSummary>> = flow {
+        val client = Supabase.clientOrNull() ?: return@flow
+
+        suspend fun load(): List<DmSummary> = client.postgrest
+            .rpc("dm_summaries")
+            .decodeList<JsonObject>()
+            .mapNotNull(DmSummary::fromJson)
+
+        emit(loadOr("dms", emptyList()) { load() })
+
+        // A new DM channel or a new message changes the order and the preview.
+        val channel = client.channel("dms-${userId()}")
+        val events = merge(
+            channel.postgresChangeFlow<PostgresAction.Insert>("public") { table = "messages" },
+            channel.postgresChangeFlow<PostgresAction.Insert>("public") { table = "channels" },
+        )
+        channel.subscribe()
+        try {
+            events.collect { emit(loadOr("dms", emptyList()) { load() }) }
+        } finally {
+            runCatching { channel.unsubscribe() }
+        }
+    }
+
+    override suspend fun openDm(userId: String): String {
+        val client = Supabase.clientOrNull() ?: error("Supabase not configured")
+        return client.postgrest
+            .rpc("find_or_create_dm", buildJsonObject { put("other_user", userId) })
+            .data.trim('"')
     }
 
     override fun getOnlineUsers(guildId: String): Flow<Set<String>> = channelFlow {

@@ -312,12 +312,35 @@ def run(created_users, created_guilds):
     check("new message after read shows 1", st == 200 and counts and counts[0]["unread"] == 1,
           f"{st} {counts}")
 
+    print("members")
+    st, rows = b.get(
+        "/rest/v1/guild_members?select=user_id,nickname,"
+        "profile:profiles(id,username,display_name,avatar_url,banner_url,custom_status,badges),"
+        "member_roles(role:roles(id,name,color,position)),guild:guilds(owner_id)"
+        f"&guild_id=eq.{gid}"
+    )
+    check("member list query", st == 200 and len(rows) == 2, f"{st} {str(rows)[:200]}")
+    if st == 200 and len(rows) == 2:
+        owners = [r for r in rows if r["user_id"] == r["guild"]["owner_id"]]
+        check("owner is identifiable", len(owners) == 1 and owners[0]["user_id"] == a_uid, owners)
+
     print("DMs")
     st, dm = a.rpc("find_or_create_dm", {"other_user": b_uid})
     check("find_or_create_dm rpc", st == 200 and isinstance(dm, str), f"{st} {dm}")
     if st == 200:
         st, again = a.rpc("find_or_create_dm", {"other_user": b_uid})
         check("dm is reused", st == 200 and again == dm, f"{st} {again}")
+        b.post("/rest/v1/messages",
+               {"channel_id": dm, "author_id": b_uid, "content": "dm hello"})
+        st, summaries = a.rpc("dm_summaries", {})
+        mine = [s for s in summaries if s["channel_id"] == dm] if st == 200 else []
+        check("dm summary lists the conversation",
+              st == 200 and len(mine) == 1 and mine[0]["user_id"] == b_uid, f"{st} {summaries}")
+        check("dm summary carries the last message",
+              bool(mine) and mine[0]["last_message"] == "dm hello", mine)
+        st, counts = a.rpc("channel_unread_counts", {})
+        row = next((c for c in counts if c["channel_id"] == dm), None) if st == 200 else None
+        check("dm counts as unread", row is not None and row["unread"] == 1, f"{st} {counts}")
         check("dm visible to both",
               a.get(f"/rest/v1/channels?select=id&id=eq.{dm}")[1] != []
               and b.get(f"/rest/v1/channels?select=id&id=eq.{dm}")[1] != [])

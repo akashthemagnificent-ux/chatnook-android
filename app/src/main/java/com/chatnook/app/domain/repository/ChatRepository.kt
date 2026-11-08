@@ -3,7 +3,9 @@ package com.chatnook.app.domain.repository
 import com.chatnook.app.domain.model.ChatChannel
 import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
+import com.chatnook.app.domain.model.DmSummary
 import com.chatnook.app.domain.model.Guild
+import com.chatnook.app.domain.model.Member
 import com.chatnook.app.domain.model.OutgoingImage
 import com.chatnook.app.domain.model.Profile
 import com.chatnook.app.domain.model.TypingUser
@@ -60,8 +62,17 @@ interface ChatRepository {
     /** Records that the user has read the channel up to [messageId] at [atIso]. */
     suspend fun markRead(channelId: String, messageId: String, atIso: String)
 
-    /** Unread and mention counts per channel of a guild, kept live. */
-    fun getUnreadCounts(guildId: String, mention: String?): Flow<Map<String, UnreadState>>
+    /** Unread and mention counts for every channel the user can reach, kept live. */
+    fun getUnreadCounts(mention: String?): Flow<Map<String, UnreadState>>
+
+    /** Members of a guild with their top role, for the member list. */
+    fun getMembers(guildId: String): Flow<List<Member>>
+
+    /** Direct message conversations with the other person and the newest message. */
+    fun getDms(): Flow<List<DmSummary>>
+
+    /** Finds the DM with [userId] or creates it; returns the channel id. */
+    suspend fun openDm(userId: String): String
 
     /** Ids of the members currently connected to a guild, the caller included. */
     fun getOnlineUsers(guildId: String): Flow<Set<String>>

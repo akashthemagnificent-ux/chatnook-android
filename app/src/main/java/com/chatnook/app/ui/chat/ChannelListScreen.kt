@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.EmojiEmotions
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
@@ -44,6 +45,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,6 +64,8 @@ import com.chatnook.app.ui.theme.ChatNookColors
 fun ChannelListScreen(
     viewModel: ChatViewModel,
     onOpenChannel: (channelId: String, channelName: String) -> Unit,
+    onOpenDm: (channelId: String, channelName: String) -> Unit,
+    onOpenMembers: () -> Unit,
     onOpenProfile: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -71,6 +75,8 @@ fun ChannelListScreen(
     val profile by viewModel.myProfile.collectAsStateWithLifecycle()
     val notice by viewModel.notice.collectAsStateWithLifecycle()
     val unread by viewModel.unread.collectAsStateWithLifecycle()
+    val home by viewModel.home.collectAsStateWithLifecycle()
+    val dms by viewModel.dms.collectAsStateWithLifecycle()
 
     var dialog by remember { mutableStateOf<HomeDialog?>(null) }
     val selectedGuild = guilds.firstOrNull { it.guildId == selectedGuildId }
@@ -110,7 +116,9 @@ fun ChannelListScreen(
         ) {
             GuildRail(
                 guilds = guilds,
-                selectedGuildId = selectedGuildId,
+                selectedGuildId = if (home) null else selectedGuildId,
+                homeSelected = home,
+                onHome = viewModel::openHome,
                 onSelect = viewModel::selectGuild,
                 onAddGuild = { dialog = HomeDialog.CreateGuild },
                 onJoin = { dialog = HomeDialog.JoinGuild },
@@ -118,9 +126,17 @@ fun ChannelListScreen(
 
             Column(modifier = Modifier.weight(1f).fillMaxSize()) {
                 Header(
-                    title = selectedGuild?.name ?: stringResource(R.string.app_name),
-                    subtitle = selectedGuild?.let { stringResource(R.string.channels_subtitle) }
-                        ?: stringResource(R.string.channels_empty),
+                    title = if (home) {
+                        stringResource(R.string.home_title)
+                    } else {
+                        selectedGuild?.name ?: stringResource(R.string.app_name)
+                    },
+                    subtitle = if (home) {
+                        pluralStringResource(R.plurals.home_conversations, dms.size, dms.size)
+                    } else {
+                        selectedGuild?.let { stringResource(R.string.channels_subtitle) }
+                            ?: stringResource(R.string.channels_empty)
+                    },
                     onOpenProfile = onOpenProfile,
                     avatarUrl = profile?.avatarUrl,
                     accent = profile?.gradientStops?.firstOrNull()
@@ -129,7 +145,7 @@ fun ChannelListScreen(
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
-                if (selectedGuild != null) {
+                if (!home && selectedGuild != null) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -153,10 +169,19 @@ fun ChannelListScreen(
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        IconButton(onClick = onOpenMembers) {
+                            Icon(
+                                Icons.Filled.Person,
+                                contentDescription = stringResource(R.string.members_title),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
 
-                if (channels.isEmpty()) {
+                if (home) {
+                    DmList(dms = dms, unread = unread, onOpen = onOpenDm)
+                } else if (channels.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             text = stringResource(R.string.channels_empty),
@@ -234,6 +259,8 @@ private sealed interface HomeDialog {
 private fun GuildRail(
     guilds: List<Guild>,
     selectedGuildId: String?,
+    homeSelected: Boolean,
+    onHome: () -> Unit,
     onSelect: (String) -> Unit,
     onAddGuild: () -> Unit,
     onJoin: () -> Unit,
@@ -248,6 +275,29 @@ private fun GuildRail(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        // Discord's home button: the direct message list, above the servers.
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(if (homeSelected) RoundedCornerShape(14.dp) else CircleShape)
+                .background(
+                    if (homeSelected) ChatNookColors.Blurple else ChatNookColors.DarkElevated,
+                )
+                .clickable(onClick = onHome)
+                .testTag("home"),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Filled.Home,
+                contentDescription = stringResource(R.string.home_title),
+                tint = ChatNookColors.TextPrimary,
+            )
+        }
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 8.dp),
+            color = ChatNookColors.Outline,
+        )
+
         guilds.forEach { guild ->
             val selected = guild.guildId == selectedGuildId
             Box(
@@ -377,7 +427,7 @@ private fun ChannelRow(channel: ChatChannel, unread: UnreadState, onClick: () ->
 
 /** Discord's two badges: a red @count for mentions, a muted count for the rest. */
 @Composable
-private fun UnreadBadge(unread: UnreadState, tag: String) {
+internal fun UnreadBadge(unread: UnreadState, tag: String) {
     if (!unread.visible) return
     val mentions = unread.mentions > 0
     Text(
