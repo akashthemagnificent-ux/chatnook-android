@@ -27,3 +27,6 @@ tools/schema-validation/node_modules
 # Python tooling
 __pycache__/
 *.pyc
+
+# Firebase client config (injected from CI secret; never commit)
+app/google-services.json

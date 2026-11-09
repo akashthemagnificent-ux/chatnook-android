@@ -80,6 +80,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.net.Uri
 import coil3.compose.AsyncImage
 import com.chatnook.app.R
+import com.chatnook.app.data.push.ActiveChat
 import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
 import com.chatnook.app.domain.model.Reaction
@@ -148,7 +149,11 @@ fun ChatScreen(
     // once the newest row is actually on screen.
     DisposableEffect(channelId) {
         viewModel.openChannel(channelId)
-        onDispose { viewModel.closeChannel(channelId) }
+        ActiveChat.channelId = channelId
+        onDispose {
+            if (ActiveChat.channelId == channelId) ActiveChat.channelId = null
+            viewModel.closeChannel(channelId)
+        }
     }
 
     // Reaching the newest row by hand clears the "new messages" counter.

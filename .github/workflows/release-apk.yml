@@ -56,6 +56,28 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      # Both files are gitignored: the repo is public and the keystore is a secret.
+      # Missing secrets are tolerated so a fork can still build.
+      - name: Write Firebase config
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" | base64 -d > app/google-services.json
+          else
+            echo "No GOOGLE_SERVICES_JSON secret; building without push support."
+          fi
+
+      - name: Decode keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/chatnook.jks"
+          else
+            echo "No KEYSTORE_BASE64 secret; the release APK will use the debug key."
+          fi
+
       - name: Run unit tests
         run: ./gradlew :app:testReleaseUnitTest --no-daemon --stacktrace
 
@@ -63,10 +85,17 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           ./gradlew :app:assembleRelease --no-daemon --stacktrace \
             -PSUPABASE_URL="$SUPABASE_URL" \
-            -PSUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+            -PSUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+            -PCHATNOOK_KEYSTORE_PATH="$RUNNER_TEMP/chatnook.jks" \
+            -PCHATNOOK_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" \
+            -PCHATNOOK_KEY_ALIAS="$KEY_ALIAS" \
+            -PCHATNOOK_KEY_PASSWORD="$KEY_PASSWORD"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

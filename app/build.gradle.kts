@@ -6,6 +6,12 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// The Firebase config is gitignored (public repo). Without it the app still builds and
+// simply has no push support, which keeps fresh clones and forks working.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 // CI passes -PSUPABASE_*, local dev keeps them in local.properties (gitignored).
 // Gradle does not load local.properties on its own, hence the explicit read.
 val localProps = Properties().apply {
@@ -110,6 +116,10 @@ dependencies {
     implementation(libs.supabase.storage)
     // Ktor needs an explicit engine on Android; supabase-kt only pulls ktor-client-core.
     implementation(libs.ktor.client.okhttp)
+
+    // Push: the BOM keeps messaging and its transitive SDKs on matching versions.
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
 
     testImplementation(libs.junit)
 

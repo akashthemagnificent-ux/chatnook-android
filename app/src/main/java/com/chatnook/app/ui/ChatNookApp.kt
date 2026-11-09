@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -14,6 +15,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.chatnook.app.data.push.PendingChat
+import com.chatnook.app.data.push.PushRegistrar
 import com.chatnook.app.ui.auth.AuthScreen
 import com.chatnook.app.ui.auth.AuthViewModel
 import com.chatnook.app.ui.chat.ChannelListScreen
@@ -64,6 +67,17 @@ private fun SignedInRoutes(authViewModel: AuthViewModel) {
     // One ChatViewModel for the whole signed-in session, so channel caches and the
     // live Realtime subscriptions survive navigating between screens.
     val chatViewModel: ChatViewModel = viewModel()
+
+    // Attach this device's push token to the account, and follow a tapped notification.
+    LaunchedEffect(Unit) { PushRegistrar.sync() }
+    val pendingChat by PendingChat.route.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingChat) {
+        val route = pendingChat ?: return@LaunchedEffect
+        PendingChat.consume()
+        navController.navigate(chatRoute(route.channelId, route.channelName, route.isDm)) {
+            popUpTo(ROUTE_CHANNELS) { inclusive = false }
+        }
+    }
 
     NavHost(navController = navController, startDestination = ROUTE_CHANNELS) {
         composable(ROUTE_CHANNELS) {
