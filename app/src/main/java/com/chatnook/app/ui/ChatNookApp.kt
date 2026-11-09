@@ -21,12 +21,14 @@ import com.chatnook.app.ui.chat.ChatScreen
 import com.chatnook.app.ui.chat.ChatViewModel
 import com.chatnook.app.ui.chat.MembersScreen
 import com.chatnook.app.ui.chat.ProfileScreen
+import com.chatnook.app.ui.chat.ServerSettingsScreen
 import com.chatnook.app.ui.theme.ChatNookTheme
 import io.github.jan.supabase.auth.status.SessionStatus
 
 private const val ROUTE_CHANNELS = "channels"
 private const val ROUTE_CHAT = "chat/{channelId}/{channelName}?dm={dm}"
 private const val ROUTE_MEMBERS = "members"
+private const val ROUTE_SERVER = "server"
 private const val ROUTE_PROFILE = "profile"
 
 private fun chatRoute(channelId: String, channelName: String, isDm: Boolean = false) =
@@ -74,6 +76,7 @@ private fun SignedInRoutes(authViewModel: AuthViewModel) {
                     navController.navigate(chatRoute(channelId, name, isDm = true))
                 },
                 onOpenMembers = { navController.navigate(ROUTE_MEMBERS) },
+                onOpenServerSettings = { navController.navigate(ROUTE_SERVER) },
                 onOpenProfile = { navController.navigate(ROUTE_PROFILE) },
             )
         }
@@ -88,6 +91,12 @@ private fun SignedInRoutes(authViewModel: AuthViewModel) {
                 channelId = channelId,
                 channelName = channelName,
                 isDm = entry.arguments?.getBoolean("dm") == true,
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(ROUTE_SERVER) {
+            ServerSettingsScreen(
+                viewModel = chatViewModel,
                 onBack = { navController.popBackStack() },
             )
         }

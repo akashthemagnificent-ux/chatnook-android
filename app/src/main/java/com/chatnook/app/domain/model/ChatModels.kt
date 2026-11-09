@@ -236,6 +236,8 @@ data class ChatChannel(
     /** Channel topic, shown as the subtitle in the list. */
     val description: String?,
     val type: String,
+    /** Sort key inside the guild; reordering rewrites these as 0..n-1. */
+    val position: Int = 0,
 ) {
     companion object {
         fun fromJson(json: JsonObject): ChatChannel = ChatChannel(
@@ -244,6 +246,7 @@ data class ChatChannel(
             name = json.str("name").orEmpty(),
             description = json.str("topic"),
             type = json.str("type") ?: "text",
+            position = json.int("position"),
         )
     }
 }

@@ -5,6 +5,7 @@ import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
 import com.chatnook.app.domain.model.DmSummary
 import com.chatnook.app.domain.model.Guild
+import com.chatnook.app.domain.model.Invite
 import com.chatnook.app.domain.model.Member
 import com.chatnook.app.domain.model.OutgoingImage
 import com.chatnook.app.domain.model.Profile
@@ -84,7 +85,30 @@ interface ChatRepository {
 
     suspend fun createChannel(guildId: String, name: String, topic: String?): ChatChannel
 
-    suspend fun createInvite(guildId: String): String
+    /** Renames a channel and/or changes its topic; null leaves the field alone. */
+    suspend fun updateChannel(channelId: String, name: String? = null, topic: String? = null)
+
+    suspend fun deleteChannel(channelId: String)
+
+    /** Rewrites channel positions as 0..n-1 in the given order; owner only. */
+    suspend fun reorderChannels(guildId: String, orderedIds: List<String>)
+
+    /** Renames a guild and/or replaces its icon; owner only. */
+    suspend fun updateGuild(guildId: String, name: String? = null, iconUrl: String? = null)
+
+    /** Deletes a guild and everything in it; owner only. */
+    suspend fun deleteGuild(guildId: String)
+
+    suspend fun createInvite(
+        guildId: String,
+        expiresAtIso: String? = null,
+        maxUses: Int? = null,
+    ): String
+
+    /** Invite codes of a guild, newest first, kept live. */
+    fun getInvites(guildId: String): Flow<List<Invite>>
+
+    suspend fun revokeInvite(code: String)
 
     /** Redeems an invite code; returns the guild id the user joined. */
     suspend fun joinGuild(code: String): String

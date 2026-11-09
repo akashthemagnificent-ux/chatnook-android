@@ -8,6 +8,7 @@ import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
 import com.chatnook.app.domain.model.DmSummary
 import com.chatnook.app.domain.model.Guild
+import com.chatnook.app.domain.model.Invite
 import com.chatnook.app.domain.model.Member
 import com.chatnook.app.domain.model.OutgoingImage
 import com.chatnook.app.domain.model.Profile
@@ -43,6 +44,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -110,10 +113,14 @@ class SupabaseChatRepository : ChatRepository {
         // Membership rows carry no payload we can patch locally, so re-read the
         // whole (tiny) list whenever it changes.
         val channel = client.channel("guild-members-${userId()}")
-        val events = channel.postgresChangeFlow<PostgresAction>("public") {
-            table = "guild_members"
-            filter("user_id", io.github.jan.supabase.postgrest.query.filter.FilterOperator.EQ, userId())
-        }
+        val events = merge(
+            channel.postgresChangeFlow<PostgresAction>("public") {
+                table = "guild_members"
+                filter("user_id", FilterOperator.EQ, userId())
+            },
+            // A rename or a new icon must reach the rail without a restart.
+            channel.postgresChangeFlow<PostgresAction>("public") { table = "guilds" },
+        )
         channel.subscribe()
         try {
             events.collect { emit(loadOr("guilds", emptyList()) { load() }) }
@@ -144,12 +151,14 @@ class SupabaseChatRepository : ChatRepository {
         topic: String?,
     ): ChatChannel {
         val client = Supabase.clientOrNull() ?: error("Supabase not configured")
+        // max + 1, not count: after a delete, count can collide with an existing position.
         val nextPosition = runCatching {
             client.from("channels")
                 .select(Columns.raw("position")) { filter { eq("guild_id", guildId) } }
                 .decodeList<JsonObject>()
-                .size
-        }.getOrDefault(0)
+                .maxOfOrNull { it.int("position") }
+                ?.plus(1)
+        }.getOrNull() ?: 0
 
         return client.from("channels").insert(
             buildJsonObject {
@@ -162,12 +171,96 @@ class SupabaseChatRepository : ChatRepository {
         ) { select() }.decodeSingle<JsonObject>().let(ChatChannel::fromJson)
     }
 
-    override suspend fun createInvite(guildId: String): String {
+    override suspend fun createInvite(
+        guildId: String,
+        expiresAtIso: String?,
+        maxUses: Int?,
+    ): String {
         val client = Supabase.clientOrNull() ?: error("Supabase not configured")
         return client.postgrest
-            .rpc("create_invite", buildJsonObject { put("gid", guildId) })
+            .rpc(
+                "create_invite",
+                buildJsonObject {
+                    put("gid", guildId)
+                    put("p_expires_at", expiresAtIso)
+                    put("p_max_uses", maxUses)
+                },
+            )
             .data.trim('"')
             .uppercase()
+    }
+
+    override fun getInvites(guildId: String): Flow<List<Invite>> = flow {
+        val client = Supabase.clientOrNull() ?: return@flow
+
+        suspend fun load(): List<Invite> = client.from("invites")
+            .select(Columns.raw("code,uses,max_uses,created_at,expires_at")) {
+                filter { eq("guild_id", guildId) }
+                order("created_at", Order.DESCENDING)
+            }
+            .decodeList<JsonObject>()
+            .mapNotNull(Invite::fromJson)
+
+        emit(loadOr("invites", emptyList()) { load() })
+
+        val channel = client.channel("invites-$guildId")
+        val events = channel.postgresChangeFlow<PostgresAction>("public") {
+            table = "invites"
+            filter("guild_id", FilterOperator.EQ, guildId)
+        }
+        channel.subscribe()
+        try {
+            events.collect { emit(loadOr("invites", emptyList()) { load() }) }
+        } finally {
+            runCatching { channel.unsubscribe() }
+        }
+    }
+
+    override suspend fun revokeInvite(code: String) {
+        val client = Supabase.clientOrNull() ?: error("Supabase not configured")
+        client.postgrest.rpc("revoke_invite", buildJsonObject { put("p_code", code) })
+    }
+
+    override suspend fun updateGuild(guildId: String, name: String?, iconUrl: String?) {
+        val client = Supabase.clientOrNull() ?: error("Supabase not configured")
+        val patch = buildJsonObject {
+            name?.takeIf { it.isNotBlank() }?.let { put("name", it.trim()) }
+            iconUrl?.let { put("icon_url", it) }
+        }
+        if (patch.isEmpty()) return
+        client.from("guilds").update(patch) { filter { eq("id", guildId) } }
+    }
+
+    override suspend fun deleteGuild(guildId: String) {
+        val client = Supabase.clientOrNull() ?: error("Supabase not configured")
+        client.from("guilds").delete { filter { eq("id", guildId) } }
+    }
+
+    override suspend fun updateChannel(channelId: String, name: String?, topic: String?) {
+        val client = Supabase.clientOrNull() ?: error("Supabase not configured")
+        val patch = buildJsonObject {
+            name?.takeIf { it.isNotBlank() }?.let { put("name", it.trim()) }
+            // An empty topic clears it, which is a legitimate edit.
+            topic?.let { put("topic", it.trim().takeIf(String::isNotEmpty)) }
+        }
+        if (patch.isEmpty()) return
+        client.from("channels").update(patch) { filter { eq("id", channelId) } }
+    }
+
+    override suspend fun deleteChannel(channelId: String) {
+        val client = Supabase.clientOrNull() ?: error("Supabase not configured")
+        client.from("channels").delete { filter { eq("id", channelId) } }
+    }
+
+    override suspend fun reorderChannels(guildId: String, orderedIds: List<String>) {
+        val client = Supabase.clientOrNull() ?: error("Supabase not configured")
+        client.postgrest.rpc(
+            "reorder_channels",
+            buildJsonObject {
+                put("p_guild_id", guildId)
+                put("p_ids", buildJsonArray { orderedIds.forEach { add(it) } })
+            },
+        )
     }
 
     override suspend fun joinGuild(code: String): String {

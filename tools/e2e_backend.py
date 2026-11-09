@@ -55,11 +55,14 @@ MESSAGE_COLUMNS = repo_const("MESSAGE_COLUMNS")
 
 
 class Api:
-    def __init__(self, token=None):
+    def __init__(self, token=None, key=None):
         self.token = token
+        # The service key is an opaque `sb_secret_…`, not a JWT, so it only ever
+        # goes in `apikey`; putting it in Authorization fails with PGRST301.
+        self.key = key
 
     def _req(self, path, method="GET", body=None, token=None, key=None, prefer=None):
-        headers = {"apikey": key or ANON, "Content-Type": "application/json"}
+        headers = {"apikey": key or self.key or ANON, "Content-Type": "application/json"}
         tok = token or self.token
         if tok:
             headers["Authorization"] = "Bearer " + tok
@@ -84,6 +87,9 @@ class Api:
     def post(self, path, body, **kw):
         return self._req(path, "POST", body, **kw)
 
+    def patch(self, path, body, **kw):
+        return self._req(path, "PATCH", body, **kw)
+
     def delete(self, path, **kw):
         return self._req(path, "DELETE", **kw)
 
@@ -106,7 +112,7 @@ class Api:
 
 
 anon = Api()
-admin = Api(SERVICE) if SERVICE else None
+admin = Api(key=SERVICE) if SERVICE else None
 failures = []
 
 
@@ -348,6 +354,82 @@ def run(created_users, created_guilds):
         created_users.append(c_uid)
         check("dm hidden from third party",
               Api(c_tok).get(f"/rest/v1/channels?select=id&id=eq.{dm}")[1] == [])
+
+    print("server management")
+    a.patch(f"/rest/v1/guilds?id=eq.{gid}", {"name": "Renamed"})
+    st, rows = a.get(f"/rest/v1/guilds?select=name&id=eq.{gid}")
+    check("owner renames guild", st == 200 and rows and rows[0]["name"] == "Renamed", f"{st} {rows}")
+
+    b.patch(f"/rest/v1/guilds?id=eq.{gid}", {"name": "Hijacked"})
+    st, rows = a.get(f"/rest/v1/guilds?select=name&id=eq.{gid}")
+    check("member cannot rename guild", rows and rows[0]["name"] == "Renamed", f"{st} {rows}")
+
+    st, created = a.post("/rest/v1/channels",
+                         {"guild_id": gid, "name": "ops", "type": "text", "position": 5},
+                         prefer="return=representation")
+    check("owner creates channel", st == 201 and created, f"{st} {created}")
+    ops = created[0]["id"] if st == 201 and created else None
+
+    if ops:
+        a.patch(f"/rest/v1/channels?id=eq.{ops}", {"name": "ops-renamed", "topic": "deploys"})
+        st, rows = a.get(f"/rest/v1/channels?select=name,topic&id=eq.{ops}")
+        check("channel rename + topic",
+              st == 200 and rows and rows[0] == {"name": "ops-renamed", "topic": "deploys"},
+              f"{st} {rows}")
+
+        st, _ = a.rpc("reorder_channels", {"p_guild_id": gid, "p_ids": [ops, cid]})
+        st2, rows = a.get(f"/rest/v1/channels?select=id,position&guild_id=eq.{gid}&order=position")
+        check("reorder_channels rpc",
+              st in (200, 204) and [r["id"] for r in rows] == [ops, cid]
+              and [r["position"] for r in rows] == [0, 1], f"{st} {rows}")
+
+        st, _ = b.post("/rest/v1/channels",
+                       {"guild_id": gid, "name": "nope", "type": "text", "position": 9})
+        check("member cannot create channel", st == 403, st)
+
+        b.delete(f"/rest/v1/channels?id=eq.{ops}")
+        check("member cannot delete channel",
+              a.get(f"/rest/v1/channels?select=id&id=eq.{ops}")[1] != [])
+
+        st, _ = a.delete(f"/rest/v1/channels?id=eq.{ops}")
+        check("owner deletes channel",
+              st in (200, 204) and a.get(f"/rest/v1/channels?select=id&id=eq.{ops}")[1] == [],
+              st)
+
+    print("invite rules")
+    st, code = a.rpc("create_invite", {"gid": gid, "p_expires_at": None, "p_max_uses": 1})
+    check("invite with a use cap", st == 200 and isinstance(code, str), f"{st} {code}")
+    if st == 200:
+        d_tok, d_uid = signup()
+        created_users.append(d_uid)
+        st, joined = Api(d_tok).rpc("join_guild", {"invite_code": code})
+        check("capped invite works once", st == 200 and joined == gid, f"{st} {joined}")
+        e_tok, e_uid = signup()
+        created_users.append(e_uid)
+        st, joined = Api(e_tok).rpc("join_guild", {"invite_code": code})
+        check("capped invite is spent", st >= 400, f"{st} {joined}")
+
+    st, code = a.rpc("create_invite", {"gid": gid})
+    st2, _ = a.rpc("revoke_invite", {"p_code": code})
+    check("revoke_invite rpc", st == 200 and st2 in (200, 204), f"{st} {st2}")
+    f_tok, f_uid = signup()
+    created_users.append(f_uid)
+    st, joined = Api(f_tok).rpc("join_guild", {"invite_code": code})
+    check("revoked invite is rejected", st >= 400, f"{st} {joined}")
+
+    st, code = a.rpc("create_invite", {"gid": gid, "p_expires_at": "2020-01-01T00:00:00Z"})
+    st2, joined = Api(f_tok).rpc("join_guild", {"invite_code": code})
+    check("expired invite is rejected", st == 200 and st2 >= 400, f"{st} {st2} {joined}")
+
+    print("server delete")
+    b.delete(f"/rest/v1/guilds?id=eq.{gid}")
+    check("member cannot delete guild",
+          a.get(f"/rest/v1/guilds?select=id&id=eq.{gid}")[1] != [])
+    st, _ = a.delete(f"/rest/v1/guilds?id=eq.{gid}")
+    check("owner deletes guild",
+          st in (200, 204) and a.get(f"/rest/v1/guilds?select=id&id=eq.{gid}")[1] == [], st)
+    st, orphan = admin.get(f"/rest/v1/channels?select=id&guild_id=eq.{gid}") if admin else (0, [])
+    check("channels go with the guild", orphan == [], f"{st} {orphan}")
 
 
 if __name__ == "__main__":
