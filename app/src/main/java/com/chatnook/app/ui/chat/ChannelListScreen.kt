@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -84,6 +85,8 @@ fun ChannelListScreen(
     val home by viewModel.home.collectAsStateWithLifecycle()
     val dms by viewModel.dms.collectAsStateWithLifecycle()
     val permissions by viewModel.permissions.collectAsStateWithLifecycle()
+    val guildsLoaded by viewModel.guildsLoaded.collectAsStateWithLifecycle()
+    val channelsLoaded by viewModel.channelsLoaded.collectAsStateWithLifecycle()
 
     var dialog by remember { mutableStateOf<HomeDialog?>(null) }
     var editingChannel by remember { mutableStateOf<ChatChannel?>(null) }
@@ -94,6 +97,9 @@ fun ChannelListScreen(
     val canManageGuild = permissions has PermissionBits.MANAGE_GUILD
     val canManageRoles = permissions has PermissionBits.MANAGE_ROLES
     val canInvite = permissions has PermissionBits.CREATE_INVITE
+    // Cold start and guild switches: the lists are still empty because nothing has
+    // arrived yet, not because the server has nothing in it.
+    val loading = !guildsLoaded || (selectedGuildId != null && !channelsLoaded)
     val context = LocalContext.current
 
     // Two-step emoji upload: pick the file, then name it once the URL is known.
@@ -149,7 +155,7 @@ fun ChannelListScreen(
                         pluralStringResource(R.plurals.home_conversations, dms.size, dms.size)
                     } else {
                         selectedGuild?.let { stringResource(R.string.channels_subtitle) }
-                            ?: stringResource(R.string.channels_empty)
+                            ?: if (loading) "" else stringResource(R.string.channels_empty)
                     },
                     onOpenProfile = onOpenProfile,
                     avatarUrl = profile?.avatarUrl,
@@ -214,6 +220,10 @@ fun ChannelListScreen(
 
                 if (home) {
                     DmList(dms = dms, unread = unread, onOpen = onOpenDm)
+                } else if (loading) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
                 } else if (channels.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(

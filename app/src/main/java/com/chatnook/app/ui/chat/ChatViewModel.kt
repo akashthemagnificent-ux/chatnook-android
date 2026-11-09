@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -48,16 +49,27 @@ class ChatViewModel(
     val currentUserId: String
         get() = Supabase.clientOrNull()?.auth?.currentUserOrNull()?.id.orEmpty()
 
+    /** False until the server list has been fetched once; drives the cold-start spinner. */
+    private val _guildsLoaded = MutableStateFlow(false)
+    val guildsLoaded: StateFlow<Boolean> = _guildsLoaded.asStateFlow()
+
     val guilds: StateFlow<List<Guild>> = repository.getGuilds()
+        .onEach { _guildsLoaded.value = true }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _selectedGuildId = MutableStateFlow<String?>(null)
     val selectedGuildId: StateFlow<String?> = _selectedGuildId.asStateFlow()
 
+    /** True once the selected guild's channels have arrived, so "empty" means empty. */
+    private val _channelsLoaded = MutableStateFlow(false)
+    val channelsLoaded: StateFlow<Boolean> = _channelsLoaded.asStateFlow()
+
     /** Channels of the selected guild; empty when no guild is picked yet. */
     val channels: StateFlow<List<ChatChannel>> = _selectedGuildId
         .filterNotNull()
+        .onEach { _channelsLoaded.value = false }
         .flatMapLatest { repository.getChannels(it) }
+        .onEach { _channelsLoaded.value = true }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val myProfile: StateFlow<Profile?> = repository.getMyProfile()
