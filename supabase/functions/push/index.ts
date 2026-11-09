@@ -99,7 +99,8 @@ Deno.serve(async (request) => {
 
   const payload = await request.json().catch(() => null);
   const record: MessageRow | undefined = payload?.record;
-  if (!record || record.type !== "text" || !record.content) {
+  // `messages.type` is 'default' for a normal message; 'system' rows carry no push.
+  if (!record || record.type !== "default" || !record.content) {
     return new Response("ignored", { status: 200 });
   }
 
