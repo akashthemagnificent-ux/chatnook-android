@@ -12,10 +12,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.ChatNook">
 
+        <!-- singleTop: a notification tap must reach onNewIntent of the running screen
+             instead of stacking a second instance (and a second set of Realtime channels). -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.ChatNook"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
