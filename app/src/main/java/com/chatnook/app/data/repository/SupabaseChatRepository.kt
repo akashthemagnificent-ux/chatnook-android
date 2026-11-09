@@ -8,6 +8,7 @@ import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
 import com.chatnook.app.domain.model.DmSummary
 import com.chatnook.app.domain.model.Guild
+import com.chatnook.app.domain.model.GuildRole
 import com.chatnook.app.domain.model.Invite
 import com.chatnook.app.domain.model.Member
 import com.chatnook.app.domain.model.OutgoingImage
@@ -17,6 +18,7 @@ import com.chatnook.app.domain.model.UnreadState
 import com.chatnook.app.domain.model.int
 import com.chatnook.app.domain.model.str
 import com.chatnook.app.domain.repository.ChatRepository
+import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
@@ -125,7 +127,7 @@ class SupabaseChatRepository : ChatRepository {
         try {
             events.collect { emit(loadOr("guilds", emptyList()) { load() }) }
         } finally {
-            runCatching { channel.unsubscribe() }
+            client.dropChannel(channel)
         }
     }
 
@@ -212,13 +214,131 @@ class SupabaseChatRepository : ChatRepository {
         try {
             events.collect { emit(loadOr("invites", emptyList()) { load() }) }
         } finally {
-            runCatching { channel.unsubscribe() }
+            client.dropChannel(channel)
         }
     }
 
     override suspend fun revokeInvite(code: String) {
         val client = Supabase.clientOrNull() ?: error("Supabase not configured")
         client.postgrest.rpc("revoke_invite", buildJsonObject { put("p_code", code) })
+    }
+
+    override fun getRoles(guildId: String): Flow<List<GuildRole>> = flow {
+        val client = Supabase.clientOrNull() ?: return@flow
+
+        suspend fun load(): List<GuildRole> = client.from("roles")
+            .select(
+                Columns.raw(
+                    "id,name,color,position,permissions,is_everyone,member_roles(count)",
+                ),
+            ) {
+                filter { eq("guild_id", guildId) }
+                order("position", Order.DESCENDING)
+            }
+            .decodeList<JsonObject>()
+            .mapNotNull(GuildRole::fromJson)
+
+        emit(loadOr("roles", emptyList()) { load() })
+
+        val channel = client.channel("roles-$guildId")
+        val events = merge(
+            channel.postgresChangeFlow<PostgresAction>("public") {
+                table = "roles"
+                filter("guild_id", FilterOperator.EQ, guildId)
+            },
+            channel.postgresChangeFlow<PostgresAction>("public") {
+                table = "member_roles"
+                filter("guild_id", FilterOperator.EQ, guildId)
+            },
+        )
+        channel.subscribe()
+        try {
+            events.collect { emit(loadOr("roles", emptyList()) { load() }) }
+        } finally {
+            client.dropChannel(channel)
+        }
+    }
+
+    override fun getMyPermissions(guildId: String): Flow<Long> = flow {
+        val client = Supabase.clientOrNull() ?: return@flow
+
+        suspend fun load(): Long =
+            client.postgrest.rpc("my_permissions", buildJsonObject { put("gid", guildId) })
+                .decodeAs<Long>()
+
+        emit(loadOr("permissions", 0L) { load() })
+
+        // Anything that can change the answer: role edits and assignments.
+        val channel = client.channel("permissions-$guildId")
+        val events = merge(
+            channel.postgresChangeFlow<PostgresAction>("public") {
+                table = "roles"
+                filter("guild_id", FilterOperator.EQ, guildId)
+            },
+            channel.postgresChangeFlow<PostgresAction>("public") {
+                table = "member_roles"
+                filter("guild_id", FilterOperator.EQ, guildId)
+            },
+        )
+        channel.subscribe()
+        try {
+            events.collect { emit(loadOr("permissions", 0L) { load() }) }
+        } finally {
+            client.dropChannel(channel)
+        }
+    }
+
+    override suspend fun createRole(
+        guildId: String,
+        name: String,
+        color: Int?,
+        permissions: Long,
+    ): String {
+        val client = Supabase.clientOrNull() ?: error("Supabase not configured")
+        return client.postgrest.rpc(
+            "create_role",
+            buildJsonObject {
+                put("gid", guildId)
+                put("p_name", name.trim())
+                put("p_color", color)
+                put("p_permissions", permissions)
+            },
+        ).decodeAs<String>()
+    }
+
+    override suspend fun updateRole(
+        roleId: String,
+        name: String,
+        color: Int?,
+        permissions: Long,
+    ) {
+        val client = Supabase.clientOrNull() ?: error("Supabase not configured")
+        client.postgrest.rpc(
+            "update_role",
+            buildJsonObject {
+                put("p_role_id", roleId)
+                put("p_name", name.trim())
+                put("p_color", color)
+                put("p_permissions", permissions)
+            },
+        )
+    }
+
+    override suspend fun deleteRole(roleId: String) {
+        val client = Supabase.clientOrNull() ?: error("Supabase not configured")
+        client.postgrest.rpc("delete_role", buildJsonObject { put("p_role_id", roleId) })
+    }
+
+    override suspend fun setMemberRoles(guildId: String, userId: String, roleIds: List<String>) {
+        val client = Supabase.clientOrNull() ?: error("Supabase not configured")
+        client.postgrest.rpc(
+            "set_member_roles",
+            buildJsonObject {
+                put("gid", guildId)
+                put("member_id", userId)
+                put("role_ids", buildJsonArray { roleIds.forEach { add(it) } })
+            },
+        )
     }
 
     override suspend fun updateGuild(guildId: String, name: String?, iconUrl: String?) {
@@ -294,7 +414,7 @@ class SupabaseChatRepository : ChatRepository {
         try {
             events.collect { emit(loadOr("channels", emptyList()) { load() }) }
         } finally {
-            runCatching { channel.unsubscribe() }
+            client.dropChannel(channel)
         }
     }
 
@@ -384,7 +504,7 @@ class SupabaseChatRepository : ChatRepository {
                 }
             }
         } finally {
-            runCatching { channel.unsubscribe() }
+            client.dropChannel(channel)
         }
     }
 
@@ -555,7 +675,7 @@ class SupabaseChatRepository : ChatRepository {
         try {
             events.collect { emit(loadOr("unread", emptyMap()) { load() }) }
         } finally {
-            runCatching { channel.unsubscribe() }
+            client.dropChannel(channel)
         }
     }
 
@@ -578,15 +698,22 @@ class SupabaseChatRepository : ChatRepository {
         emit(loadOr("members", emptyList()) { load() })
 
         val channel = client.channel("members-$guildId")
-        val events = channel.postgresChangeFlow<PostgresAction>("public") {
-            table = "guild_members"
-            filter("guild_id", FilterOperator.EQ, guildId)
-        }
+        val events = merge(
+            channel.postgresChangeFlow<PostgresAction>("public") {
+                table = "guild_members"
+                filter("guild_id", FilterOperator.EQ, guildId)
+            },
+            // A role change repaints the roster's role groups and the assignment sheet.
+            channel.postgresChangeFlow<PostgresAction>("public") {
+                table = "member_roles"
+                filter("guild_id", FilterOperator.EQ, guildId)
+            },
+        )
         channel.subscribe()
         try {
             events.collect { emit(loadOr("members", emptyList()) { load() }) }
         } finally {
-            runCatching { channel.unsubscribe() }
+            client.dropChannel(channel)
         }
     }
 
@@ -610,7 +737,7 @@ class SupabaseChatRepository : ChatRepository {
         try {
             events.collect { emit(loadOr("dms", emptyList()) { load() }) }
         } finally {
-            runCatching { channel.unsubscribe() }
+            client.dropChannel(channel)
         }
     }
 
@@ -649,7 +776,7 @@ class SupabaseChatRepository : ChatRepository {
                 collector.join()
             } finally {
                 runCatching { channel.untrack() }
-                runCatching { channel.unsubscribe() }
+                client.dropChannel(channel)
             }
         }
     }
@@ -707,7 +834,7 @@ class SupabaseChatRepository : ChatRepository {
         try {
             events.collect { emit(loadOr("emojis", emptyList()) { load() }) }
         } finally {
-            runCatching { channel.unsubscribe() }
+            client.dropChannel(channel)
         }
     }
 
@@ -752,7 +879,7 @@ class SupabaseChatRepository : ChatRepository {
             try {
                 events.collect { emit(runCatching { getProfile(me) }.getOrNull()) }
             } finally {
-                runCatching { channel.unsubscribe() }
+                client.dropChannel(channel)
             }
         }
     }
@@ -812,4 +939,14 @@ class SupabaseChatRepository : ChatRepository {
         }
         return api.publicUrl(path)
     }
+}
+
+/**
+ * Removes a Realtime channel from the client cache, not just unsubscribes it.
+ * `client.channel(topic)` returns the cached instance, and adding a
+ * `postgresChangeFlow` to an already-joined channel throws, so leaving a screen and
+ * coming back would crash without this.
+ */
+private suspend fun SupabaseClient.dropChannel(channel: RealtimeChannel) {
+    runCatching { realtime.removeChannel(channel) }
 }

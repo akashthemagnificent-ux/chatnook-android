@@ -17,6 +17,8 @@ data class Member(
     /** ARGB from the role, null when the role has no colour. */
     val roleColor: Int?,
     val rolePosition: Int,
+    /** Every role id the member holds; used to preselect the assignment sheet. */
+    val roleIds: List<String>,
     val isOwner: Boolean,
 ) {
     /** What the list and the composer call them. */
@@ -29,9 +31,9 @@ data class Member(
         /** Null when the profile embed is missing, which only happens if RLS hides it. */
         fun fromJson(json: JsonObject): Member? {
             val profile = json["profile"] as? JsonObject ?: return null
-            val topRole = (json["member_roles"] as? JsonArray).orEmpty()
+            val roles = (json["member_roles"] as? JsonArray).orEmpty()
                 .mapNotNull { (it as? JsonObject)?.get("role") as? JsonObject }
-                .maxByOrNull { it.int("position") }
+            val topRole = roles.maxByOrNull { it.int("position") }
             val id = profile.str("id").orEmpty()
             val ownerId = (json["guild"] as? JsonObject)?.str("owner_id")
             return Member(
@@ -46,6 +48,7 @@ data class Member(
                 roleName = topRole?.str("name"),
                 roleColor = topRole?.int("color")?.takeIf { it != 0 },
                 rolePosition = topRole?.int("position") ?: -1,
+                roleIds = roles.mapNotNull { it.str("id") },
                 isOwner = ownerId != null && ownerId == id,
             )
         }

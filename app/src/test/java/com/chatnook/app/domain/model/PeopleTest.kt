@@ -23,6 +23,7 @@ class PeopleTest {
         roleName = role,
         roleColor = null,
         rolePosition = position,
+        roleIds = role?.let { listOf("role-$it") }.orEmpty(),
         isOwner = owner,
     )
 

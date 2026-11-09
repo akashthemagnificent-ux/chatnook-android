@@ -59,8 +59,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatnook.app.R
 import com.chatnook.app.domain.model.ChatChannel
 import com.chatnook.app.domain.model.Guild
+import com.chatnook.app.domain.model.PermissionBits
 import com.chatnook.app.domain.model.UnreadState
 import com.chatnook.app.domain.model.gradientStops
+import com.chatnook.app.domain.model.has
 import com.chatnook.app.ui.theme.ChatNookColors
 
 @Composable
@@ -81,13 +83,17 @@ fun ChannelListScreen(
     val unread by viewModel.unread.collectAsStateWithLifecycle()
     val home by viewModel.home.collectAsStateWithLifecycle()
     val dms by viewModel.dms.collectAsStateWithLifecycle()
+    val permissions by viewModel.permissions.collectAsStateWithLifecycle()
 
     var dialog by remember { mutableStateOf<HomeDialog?>(null) }
     var editingChannel by remember { mutableStateOf<ChatChannel?>(null) }
     var deletingChannel by remember { mutableStateOf<ChatChannel?>(null) }
     val selectedGuild = guilds.firstOrNull { it.guildId == selectedGuildId }
-    // RLS is the real gate; this only hides actions that would fail.
-    val isOwner = selectedGuild?.ownerId != null && selectedGuild.ownerId == viewModel.currentUserId
+    // RLS is the real gate; these only hide actions that would fail.
+    val canManageChannels = permissions has PermissionBits.MANAGE_CHANNELS
+    val canManageGuild = permissions has PermissionBits.MANAGE_GUILD
+    val canManageRoles = permissions has PermissionBits.MANAGE_ROLES
+    val canInvite = permissions has PermissionBits.CREATE_INVITE
     val context = LocalContext.current
 
     // Two-step emoji upload: pick the file, then name it once the URL is known.
@@ -159,23 +165,33 @@ fun ChannelListScreen(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        TextButton(onClick = { dialog = HomeDialog.CreateChannel }) {
-                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Text(stringResource(R.string.channels_add))
+                        if (canManageChannels) {
+                            TextButton(onClick = { dialog = HomeDialog.CreateChannel }) {
+                                Icon(
+                                    Icons.Filled.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Text(stringResource(R.string.channels_add))
+                            }
                         }
-                        IconButton(onClick = viewModel::invite) {
-                            Icon(
-                                Icons.Filled.Share,
-                                contentDescription = stringResource(R.string.channels_invite),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                        if (canInvite) {
+                            IconButton(onClick = viewModel::invite) {
+                                Icon(
+                                    Icons.Filled.Share,
+                                    contentDescription = stringResource(R.string.channels_invite),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
-                        IconButton(onClick = { pickEmoji.launch("image/*") }) {
-                            Icon(
-                                Icons.Filled.EmojiEmotions,
-                                contentDescription = stringResource(R.string.channels_add_emoji),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                        if (canManageGuild) {
+                            IconButton(onClick = { pickEmoji.launch("image/*") }) {
+                                Icon(
+                                    Icons.Filled.EmojiEmotions,
+                                    contentDescription = stringResource(R.string.channels_add_emoji),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                         IconButton(onClick = onOpenMembers) {
                             Icon(
@@ -184,7 +200,7 @@ fun ChannelListScreen(
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        if (isOwner) {
+                        if (canManageGuild || canManageChannels || canManageRoles) {
                             IconButton(onClick = onOpenServerSettings) {
                                 Icon(
                                     Icons.Filled.Settings,
@@ -213,7 +229,7 @@ fun ChannelListScreen(
                                 channel = channel,
                                 unread = unread[channel.channelId] ?: UnreadState.None,
                                 onClick = { onOpenChannel(channel.channelId, channel.name) },
-                                onLongClick = if (isOwner) {
+                                onLongClick = if (canManageChannels) {
                                     { editingChannel = channel }
                                 } else {
                                     null

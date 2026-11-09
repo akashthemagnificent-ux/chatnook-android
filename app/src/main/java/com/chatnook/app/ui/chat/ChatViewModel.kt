@@ -12,7 +12,9 @@ import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
 import com.chatnook.app.domain.model.DmSummary
 import com.chatnook.app.domain.model.Guild
+import com.chatnook.app.domain.model.GuildRole
 import com.chatnook.app.domain.model.Invite
+import com.chatnook.app.domain.model.Member
 import com.chatnook.app.domain.model.MemberGroup
 import com.chatnook.app.domain.model.Profile
 import com.chatnook.app.domain.model.ProfileTheme
@@ -94,6 +96,23 @@ class ChatViewModel(
         .distinctUntilChanged()
         .flatMapLatest { repository.getOnlineUsers(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    /** Roles of the selected guild, highest first. */
+    val roles: StateFlow<List<GuildRole>> = _selectedGuildId
+        .filterNotNull()
+        .distinctUntilChanged()
+        .flatMapLatest { repository.getRoles(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * The caller's permission bits in the selected guild. Drives which actions the UI
+     * offers; every write is still checked by RLS and the RPCs.
+     */
+    val permissions: StateFlow<Long> = _selectedGuildId
+        .filterNotNull()
+        .distinctUntilChanged()
+        .flatMapLatest { repository.getMyPermissions(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
 
     // One timeline per channel, created the first time it is opened. It keeps the live
     // window, loaded older pages and optimistic rows together.
@@ -363,6 +382,40 @@ class ChatViewModel(
 
     fun uploadGuildIcon(bytes: ByteArray, extension: String) {
         uploadCosmetic("avatars", bytes, extension) { url -> updateGuild(iconUrl = url) }
+    }
+
+    fun createRole(name: String, color: Int?, permissions: Long) {
+        val guildId = _selectedGuildId.value ?: return
+        viewModelScope.launch {
+            runCatching { repository.createRole(guildId, name, color, permissions) }
+                .onSuccess { _notice.value = "Role created" }
+                .onFailure { _notice.value = "Create failed: ${it.friendly()}" }
+        }
+    }
+
+    fun updateRole(role: GuildRole, name: String, color: Int?, permissions: Long) {
+        viewModelScope.launch {
+            runCatching { repository.updateRole(role.id, name, color, permissions) }
+                .onSuccess { _notice.value = "Role saved" }
+                .onFailure { _notice.value = "Save failed: ${it.friendly()}" }
+        }
+    }
+
+    fun deleteRole(role: GuildRole) {
+        viewModelScope.launch {
+            runCatching { repository.deleteRole(role.id) }
+                .onSuccess { _notice.value = "Role deleted" }
+                .onFailure { _notice.value = "Delete failed: ${it.friendly()}" }
+        }
+    }
+
+    fun setMemberRoles(member: Member, roleIds: List<String>) {
+        val guildId = _selectedGuildId.value ?: return
+        viewModelScope.launch {
+            runCatching { repository.setMemberRoles(guildId, member.userId, roleIds) }
+                .onSuccess { _notice.value = "Roles updated for ${member.label}" }
+                .onFailure { _notice.value = "Update failed: ${it.friendly()}" }
+        }
     }
 
     fun joinGuild(code: String) {
