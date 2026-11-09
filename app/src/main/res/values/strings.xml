@@ -26,6 +26,7 @@
     <string name="chat_input_hint">Message #%1$s</string>
     <string name="chat_send">Send</string>
     <string name="chat_attach_image">Attach image</string>
+    <string name="chat_emoji_picker">Insert emoji</string>
     <string name="chat_image">Image</string>
     <string name="chat_back">Back</string>
     <string name="chat_edited">(edited)</string>

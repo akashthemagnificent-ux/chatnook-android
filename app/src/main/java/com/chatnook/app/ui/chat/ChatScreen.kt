@@ -16,11 +16,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -34,15 +38,18 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -71,7 +78,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -310,6 +319,7 @@ fun ChatScreen(
                 channelName = channelName,
                 isDm = isDm,
                 isEditing = editing != null,
+                customEmojis = customEmojis,
                 onDraftChange = { text ->
                     viewModel.updateDraft(text)
                     viewModel.notifyTyping(channelId)
@@ -706,6 +716,7 @@ private fun MessageInput(
     channelName: String,
     isDm: Boolean,
     isEditing: Boolean,
+    customEmojis: List<CustomEmoji>,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
     onPickImage: (Uri) -> Unit,
@@ -713,6 +724,13 @@ private fun MessageInput(
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia(),
     ) { uri -> uri?.let(onPickImage) }
+
+    // The field keeps the cursor; the draft in the view model is only the text.
+    var field by remember { mutableStateOf(TextFieldValue(draft)) }
+    LaunchedEffect(draft) {
+        if (field.text != draft) field = TextFieldValue(draft, TextRange(draft.length))
+    }
+    var pickingEmoji by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier.fillMaxWidth().padding(8.dp),
@@ -736,8 +754,11 @@ private fun MessageInput(
             }
         }
         OutlinedTextField(
-            value = draft,
-            onValueChange = onDraftChange,
+            value = field,
+            onValueChange = {
+                field = it
+                onDraftChange(it.text)
+            },
             modifier = Modifier.weight(1f).testTag("chat_input"),
             placeholder = {
                 Text(
@@ -748,6 +769,18 @@ private fun MessageInput(
                 )
             },
             maxLines = 4,
+            trailingIcon = {
+                IconButton(
+                    onClick = { pickingEmoji = true },
+                    modifier = Modifier.testTag("chat_emoji"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.EmojiEmotions,
+                        contentDescription = stringResource(R.string.chat_emoji_picker),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
         )
         IconButton(
             onClick = onSend,
@@ -768,6 +801,68 @@ private fun MessageInput(
             )
         }
     }
+
+    if (pickingEmoji) {
+        EmojiPickerSheet(
+            customEmojis = customEmojis,
+            onPick = { insert ->
+                val start = field.selection.start.coerceIn(0, field.text.length)
+                val end = field.selection.end.coerceIn(start, field.text.length)
+                val text = field.text.replaceRange(start, end, insert)
+                field = TextFieldValue(text, TextRange(start + insert.length))
+                onDraftChange(text)
+                pickingEmoji = false
+            },
+            onDismiss = { pickingEmoji = false },
+        )
+    }
+}
+
+/** Unicode emoji for the composer sheet; a full picker is not worth the size. */
+private val EMOJI_GRID = listOf(
+    "\uD83D\uDE00", "\uD83D\uDE02", "\uD83D\uDE05", "\uD83D\uDE0D", "\uD83D\uDE0E", "\uD83E\uDD14",
+    "\uD83D\uDE22", "\uD83D\uDE21", "\uD83D\uDE4C", "\uD83D\uDC4D", "\uD83D\uDC4E", "\uD83D\uDC4F",
+    "\uD83D\uDE4F", "\uD83D\uDCAA", "\u270C\uFE0F", "\uD83E\uDD1D", "\u2764\uFE0F", "\uD83D\uDC94",
+    "\uD83D\uDD25", "\u2728", "\uD83C\uDF89", "\uD83D\uDC80", "\uD83D\uDC40", "\uD83E\uDD37",
+    "\uD83D\uDC4C", "\uD83E\uDD73", "\uD83D\uDE0A", "\uD83D\uDE10", "\uD83D\uDE2D", "\uD83D\uDE31",
+    "\uD83E\uDD2F", "\uD83D\uDC51", "\uD83C\uDF55", "\u2615", "\uD83C\uDFAE", "\uD83D\uDE80",
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EmojiPickerSheet(
+    customEmojis: List<CustomEmoji>,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(7),
+            modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp),
+            contentPadding = PaddingValues(12.dp),
+        ) {
+            gridItems(EMOJI_GRID) { emoji ->
+                EmojiCell(onClick = { onPick(emoji) }) { Text(emoji, style = MaterialTheme.typography.titleLarge) }
+            }
+            gridItems(customEmojis, key = { it.name }) { emoji ->
+                EmojiCell(onClick = { onPick(":${emoji.name}:") }) {
+                    AsyncImage(
+                        model = emoji.url,
+                        contentDescription = ":${emoji.name}:",
+                        modifier = Modifier.size(32.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmojiCell(onClick: () -> Unit, content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { content() }
 }
 
 /** Edge-to-edge dialog: an image viewer should not sit inside a padded card. */

@@ -35,6 +35,7 @@ import io.github.jan.supabase.realtime.realtime
 import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -45,6 +46,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
@@ -947,7 +949,11 @@ class SupabaseChatRepository : ChatRepository {
  * `client.channel(topic)` returns the cached instance, and adding a
  * `postgresChangeFlow` to an already-joined channel throws, so leaving a screen and
  * coming back would crash without this.
+ *
+ * NonCancellable: the call runs from a `finally` block, where the collector's job is
+ * already cancelled. A suspend call there would abort before the channel leaves the
+ * cache, leaving a joined channel that the next collector cannot use.
  */
 private suspend fun SupabaseClient.dropChannel(channel: RealtimeChannel) {
-    runCatching { realtime.removeChannel(channel) }
+    withContext(NonCancellable) { runCatching { realtime.removeChannel(channel) } }
 }
