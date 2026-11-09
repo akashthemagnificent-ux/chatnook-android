@@ -99,6 +99,61 @@ class ProfileThemeTest {
         assertEquals(ProfileTheme.None, ProfileTheme.fromJson(null))
         assertFalse(ProfileTheme.None.isGradient)
     }
+
+    @Test
+    fun `a known texture survives and an unknown one is dropped`() {
+        val withDots = ProfileTheme.fromJson(
+            obj("""{"stops":["#FF7A18","#AF002D"],"texture":"dots"}"""),
+        )
+        assertEquals("dots", withDots.texture)
+
+        val unknown = ProfileTheme.fromJson(obj("""{"texture":"plaid"}"""))
+        assertNull(unknown.texture)
+    }
+
+    @Test
+    fun `a preset is not custom but a hand-built gradient is`() {
+        assertFalse(ProfileTheme("ocean", listOf("#00C6FF", "#0072FF")).isCustom)
+        assertTrue(ProfileTheme(stops = listOf("#00C6FF", "#0072FF")).isCustom)
+        assertFalse(ProfileTheme.None.isCustom)
+    }
+
+    @Test
+    fun `replacing a stop clears the preset name`() {
+        val preset = ProfileTheme("ocean", listOf("#00C6FF", "#0072FF"))
+        val custom = preset.withStop(1, "#FF7A18")
+
+        assertNull(custom.preset)
+        assertEquals(listOf("#00C6FF", "#FF7A18"), custom.stops)
+        assertTrue(custom.isCustom)
+    }
+
+    @Test
+    fun `an out of range or invalid stop change is ignored`() {
+        val theme = ProfileTheme(stops = listOf("#00C6FF", "#0072FF"))
+        assertEquals(theme, theme.withStop(2, "#FF7A18"))
+        assertEquals(theme, theme.withStop(0, "not-a-colour"))
+    }
+
+    @Test
+    fun `adding stops fills up to three then replaces the last`() {
+        var theme = ProfileTheme.None.withStopAdded("#00C6FF")
+        assertEquals(listOf("#00C6FF"), theme.stops)
+        theme = theme.withStopAdded("#0072FF")
+        theme = theme.withStopAdded("#001E4D")
+        assertEquals(3, theme.stops.size)
+
+        theme = theme.withStopAdded("#F72585")
+        assertEquals(listOf("#00C6FF", "#0072FF", "#F72585"), theme.stops)
+    }
+
+    @Test
+    fun `removing a stop never drops below two`() {
+        val three = ProfileTheme(stops = listOf("#a00000", "#00a000", "#0000a0"))
+
+        assertEquals(listOf("#00a000", "#0000a0"), three.withoutStop(0).stops)
+        assertEquals(2, three.withoutStop(1).withoutStop(0).stops.size)
+    }
 }
 
 class CustomEmojiTest {
