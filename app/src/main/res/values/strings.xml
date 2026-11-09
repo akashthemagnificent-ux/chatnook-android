@@ -143,8 +143,13 @@
     <string name="channel_delete_body">Delete #%1$s and every message in it?</string>
     <string name="channel_delete_confirm">Delete</string>
 
-    <!-- Roles and permissions -->
-    <string name="roles_title">Roles</string>
+    <!-- Notifications -->
+    <string name="notifications_channel">Messages</string>
+    <string name="notifications_channel_description">New messages in your channels and direct messages.</string>
+    <string name="notifications_dm_title">%1$s</string>
+    <string name="notifications_channel_title">#%1$s</string>
+
+    <!-- Roles and permissions -->    <string name="roles_title">Roles</string>
     <string name="roles_create">Create role</string>
     <string name="roles_empty">No roles yet. @everyone covers basic access.</string>
     <string name="roles_everyone_note">Everyone in the server holds this role.</string>
