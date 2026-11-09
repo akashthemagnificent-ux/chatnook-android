@@ -104,6 +104,36 @@
     <string name="profile_badge_nitro">Nitro</string>
     <string name="profile_badge_staff">Staff</string>
 
+    <!-- Server management -->
+    <string name="server_settings_title">Server settings</string>
+    <string name="server_name">Server name</string>
+    <string name="server_icon">Change icon</string>
+    <string name="server_save">Save changes</string>
+    <string name="server_danger_zone">Danger zone</string>
+    <string name="server_delete">Delete server</string>
+    <string name="server_delete_body">Type %1$s to confirm. Every channel, message and attachment goes with it.</string>
+    <string name="server_delete_confirm">Delete forever</string>
+    <string name="invites_title">Invites</string>
+    <string name="invites_create">Create invite</string>
+    <string name="invites_empty">No active invites</string>
+    <string name="invites_uses">%1$d uses</string>
+    <string name="invites_uses_max">%1$d / %2$d uses</string>
+    <string name="invites_never">Never expires</string>
+    <string name="invites_expired">Expired</string>
+    <string name="invites_revoke">Revoke invite</string>
+    <string name="invites_expiry_title">Invite expires</string>
+    <string name="invites_expiry_day">In 1 day</string>
+    <string name="invites_expiry_week">In 7 days</string>
+    <string name="invites_expiry_never">Never</string>
+    <string name="channel_settings_title">Channel settings</string>
+    <string name="channel_topic">Topic</string>
+    <string name="channel_move_up">Move up</string>
+    <string name="channel_move_down">Move down</string>
+    <string name="channel_delete">Delete channel</string>
+    <string name="channel_delete_title">Delete channel?</string>
+    <string name="channel_delete_body">Delete #%1$s and every message in it?</string>
+    <string name="channel_delete_confirm">Delete</string>
+
     <!-- Shared actions -->
     <string name="action_create">Create</string>
     <string name="action_cancel">Cancel</string>

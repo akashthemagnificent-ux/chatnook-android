@@ -1,7 +1,9 @@
 package com.chatnook.app.ui.chat
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +23,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
@@ -66,6 +69,7 @@ fun ChannelListScreen(
     onOpenChannel: (channelId: String, channelName: String) -> Unit,
     onOpenDm: (channelId: String, channelName: String) -> Unit,
     onOpenMembers: () -> Unit,
+    onOpenServerSettings: () -> Unit,
     onOpenProfile: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -79,7 +83,11 @@ fun ChannelListScreen(
     val dms by viewModel.dms.collectAsStateWithLifecycle()
 
     var dialog by remember { mutableStateOf<HomeDialog?>(null) }
+    var editingChannel by remember { mutableStateOf<ChatChannel?>(null) }
+    var deletingChannel by remember { mutableStateOf<ChatChannel?>(null) }
     val selectedGuild = guilds.firstOrNull { it.guildId == selectedGuildId }
+    // RLS is the real gate; this only hides actions that would fail.
+    val isOwner = selectedGuild?.ownerId != null && selectedGuild.ownerId == viewModel.currentUserId
     val context = LocalContext.current
 
     // Two-step emoji upload: pick the file, then name it once the URL is known.
@@ -176,6 +184,15 @@ fun ChannelListScreen(
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        if (isOwner) {
+                            IconButton(onClick = onOpenServerSettings) {
+                                Icon(
+                                    Icons.Filled.Settings,
+                                    contentDescription = stringResource(R.string.server_settings_title),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -196,6 +213,11 @@ fun ChannelListScreen(
                                 channel = channel,
                                 unread = unread[channel.channelId] ?: UnreadState.None,
                                 onClick = { onOpenChannel(channel.channelId, channel.name) },
+                                onLongClick = if (isOwner) {
+                                    { editingChannel = channel }
+                                } else {
+                                    null
+                                },
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                         }
@@ -228,6 +250,47 @@ fun ChannelListScreen(
         )
 
         null -> Unit
+    }
+
+    editingChannel?.let { channel ->
+        val index = channels.indexOfFirst { it.channelId == channel.channelId }
+        ChannelSettingsDialog(
+            channel = channel,
+            canMoveUp = index > 0,
+            canMoveDown = index >= 0 && index < channels.lastIndex,
+            onMove = { delta -> viewModel.moveChannel(channel.channelId, delta) },
+            onDelete = { deletingChannel = channel; editingChannel = null },
+            onSave = { name, topic ->
+                viewModel.updateChannel(channel.channelId, name, topic)
+                editingChannel = null
+            },
+            onDismiss = { editingChannel = null },
+        )
+    }
+
+    deletingChannel?.let { channel ->
+        AlertDialog(
+            onDismissRequest = { deletingChannel = null },
+            modifier = Modifier.semantics { testTagsAsResourceId = true },
+            title = { Text(stringResource(R.string.channel_delete_title)) },
+            text = { Text(stringResource(R.string.channel_delete_body, channel.name)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteChannel(channel.channelId)
+                        deletingChannel = null
+                    },
+                    modifier = Modifier.testTag("channel_delete_confirm"),
+                ) {
+                    Text(stringResource(R.string.channel_delete_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingChannel = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
     }
 
     // The upload finishes before this dialog appears, so the name and URL match.
@@ -388,12 +451,18 @@ private fun Header(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ChannelRow(channel: ChatChannel, unread: UnreadState, onClick: () -> Unit) {
+private fun ChannelRow(
+    channel: ChatChannel,
+    unread: UnreadState,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .testTag("channel_${channel.name}")
             .padding(horizontal = 20.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -473,6 +542,72 @@ private fun InputDialog(
             ) {
                 Text(stringResource(R.string.action_create))
             }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        },
+    )
+}
+
+/** Rename, retopic, reorder and delete one channel. */
+@Composable
+private fun ChannelSettingsDialog(
+    channel: ChatChannel,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMove: (Int) -> Unit,
+    onDelete: () -> Unit,
+    onSave: (name: String, topic: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var name by remember { mutableStateOf(channel.name) }
+    var topic by remember { mutableStateOf(channel.description.orEmpty()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.semantics { testTagsAsResourceId = true },
+        title = { Text(stringResource(R.string.channel_settings_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.channels_channel_name)) },
+                    singleLine = true,
+                    modifier = Modifier.testTag("channel_name"),
+                )
+                OutlinedTextField(
+                    value = topic,
+                    onValueChange = { topic = it },
+                    label = { Text(stringResource(R.string.channel_topic)) },
+                    singleLine = true,
+                    modifier = Modifier.testTag("channel_topic"),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(
+                        onClick = { onMove(-1) },
+                        enabled = canMoveUp,
+                        modifier = Modifier.testTag("channel_up"),
+                    ) { Text(stringResource(R.string.channel_move_up)) }
+                    TextButton(
+                        onClick = { onMove(1) },
+                        enabled = canMoveDown,
+                        modifier = Modifier.testTag("channel_down"),
+                    ) { Text(stringResource(R.string.channel_move_down)) }
+                }
+                TextButton(onClick = onDelete, modifier = Modifier.testTag("channel_delete")) {
+                    Text(
+                        text = stringResource(R.string.channel_delete),
+                        color = ChatNookColors.Red,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(name, topic) },
+                enabled = name.isNotBlank(),
+                modifier = Modifier.testTag("channel_save"),
+            ) { Text(stringResource(R.string.action_save)) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }

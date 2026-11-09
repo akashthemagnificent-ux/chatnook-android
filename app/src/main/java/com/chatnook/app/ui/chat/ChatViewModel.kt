@@ -12,12 +12,14 @@ import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
 import com.chatnook.app.domain.model.DmSummary
 import com.chatnook.app.domain.model.Guild
+import com.chatnook.app.domain.model.Invite
 import com.chatnook.app.domain.model.MemberGroup
 import com.chatnook.app.domain.model.Profile
 import com.chatnook.app.domain.model.ProfileTheme
 import com.chatnook.app.domain.model.TypingUser
 import com.chatnook.app.domain.model.UnreadState
 import com.chatnook.app.domain.model.groupMembers
+import com.chatnook.app.domain.model.movedOrder
 import com.chatnook.app.domain.model.sortDms
 import com.chatnook.app.domain.model.unreadBadges
 import com.chatnook.app.domain.repository.ChatRepository
@@ -281,6 +283,86 @@ class ChatViewModel(
                 .onSuccess { _notice.value = "Invite code: $it" }
                 .onFailure { _notice.value = "Invite failed: ${it.friendly()}" }
         }
+    }
+
+    /** Invite codes of the selected guild, newest first. */
+    val invites: StateFlow<List<Invite>> = _selectedGuildId
+        .filterNotNull()
+        .distinctUntilChanged()
+        .flatMapLatest { repository.getInvites(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** [expiresInDays] null means the code never expires. */
+    fun createInvite(expiresInDays: Int?) {
+        val guildId = _selectedGuildId.value ?: return
+        viewModelScope.launch {
+            val expiresAt = expiresInDays?.let {
+                kotlin.time.Instant
+                    .fromEpochMilliseconds(System.currentTimeMillis() + it * 86_400_000L)
+                    .toString()
+            }
+            runCatching { repository.createInvite(guildId, expiresAt) }
+                .onSuccess { _notice.value = "Invite code: $it" }
+                .onFailure { _notice.value = "Invite failed: ${it.friendly()}" }
+        }
+    }
+
+    fun revokeInvite(code: String) {
+        viewModelScope.launch {
+            runCatching { repository.revokeInvite(code) }
+                .onSuccess { _notice.value = "Revoked $code" }
+                .onFailure { _notice.value = "Revoke failed: ${it.friendly()}" }
+        }
+    }
+
+    fun updateGuild(name: String? = null, iconUrl: String? = null) {
+        val guildId = _selectedGuildId.value ?: return
+        viewModelScope.launch {
+            runCatching { repository.updateGuild(guildId, name, iconUrl) }
+                .onSuccess { if (name != null) _notice.value = "Server renamed" }
+                .onFailure { _notice.value = "Save failed: ${it.friendly()}" }
+        }
+    }
+
+    fun deleteGuild() {
+        val guildId = _selectedGuildId.value ?: return
+        viewModelScope.launch {
+            runCatching { repository.deleteGuild(guildId) }
+                .onSuccess {
+                    _selectedGuildId.value = null
+                    _notice.value = "Server deleted"
+                }
+                .onFailure { _notice.value = "Delete failed: ${it.friendly()}" }
+        }
+    }
+
+    fun updateChannel(channelId: String, name: String?, topic: String?) {
+        viewModelScope.launch {
+            runCatching { repository.updateChannel(channelId, name, topic) }
+                .onSuccess { _notice.value = "Channel saved" }
+                .onFailure { _notice.value = "Save failed: ${it.friendly()}" }
+        }
+    }
+
+    fun deleteChannel(channelId: String) {
+        viewModelScope.launch {
+            runCatching { repository.deleteChannel(channelId) }
+                .onSuccess { _notice.value = "Channel deleted" }
+                .onFailure { _notice.value = "Delete failed: ${it.friendly()}" }
+        }
+    }
+
+    fun moveChannel(channelId: String, delta: Int) {
+        val guildId = _selectedGuildId.value ?: return
+        val order = movedOrder(channels.value.map { it.channelId }, channelId, delta) ?: return
+        viewModelScope.launch {
+            runCatching { repository.reorderChannels(guildId, order) }
+                .onFailure { _notice.value = "Reorder failed: ${it.friendly()}" }
+        }
+    }
+
+    fun uploadGuildIcon(bytes: ByteArray, extension: String) {
+        uploadCosmetic("avatars", bytes, extension) { url -> updateGuild(iconUrl = url) }
     }
 
     fun joinGuild(code: String) {
