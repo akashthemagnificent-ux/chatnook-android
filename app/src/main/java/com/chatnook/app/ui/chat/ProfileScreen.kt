@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,6 +38,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,11 +46,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -58,6 +64,9 @@ import com.chatnook.app.domain.model.HexColor
 import com.chatnook.app.domain.model.Profile
 import com.chatnook.app.domain.model.ProfileTheme
 import com.chatnook.app.domain.model.gradientStops
+import com.chatnook.app.domain.model.withStop
+import com.chatnook.app.domain.model.withStopAdded
+import com.chatnook.app.domain.model.withoutStop
 import com.chatnook.app.ui.theme.ChatNookColors
 
 /**
@@ -74,16 +83,23 @@ fun ProfileScreen(
     val profile by viewModel.myProfile.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    // Local edits are staged here; nothing is written until Save.
-    var displayName by remember(profile?.userId) {
-        mutableStateOf(profile?.displayName.orEmpty())
+    // Local edits are staged here; nothing is written until Save. Seeded once per user
+    // by the effect below, so a profile reload cannot wipe an in-progress edit.
+    var displayName by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("") }
+    var theme by remember { mutableStateOf(ProfileTheme.None) }
+    var accent by remember { mutableStateOf<String?>(null) }
+    var badges by remember { mutableStateOf(emptyList<String>()) }
+    var stopIndex by remember { mutableStateOf(0) }
+
+    LaunchedEffect(profile?.userId) {
+        val loaded = profile ?: return@LaunchedEffect
+        displayName = loaded.displayName
+        status = loaded.customStatus.orEmpty()
+        theme = loaded.theme
+        accent = loaded.accentColor
+        badges = loaded.badges
     }
-    var status by remember(profile?.userId) {
-        mutableStateOf(profile?.customStatus.orEmpty())
-    }
-    var theme by remember(profile?.userId) { mutableStateOf(profile?.theme ?: ProfileTheme.None) }
-    var accent by remember(profile?.userId) { mutableStateOf(profile?.accentColor) }
-    var badges by remember(profile?.userId) { mutableStateOf(profile?.badges.orEmpty()) }
 
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri ?: return@rememberLauncherForActivityResult
@@ -110,7 +126,8 @@ fun ProfileScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .imePadding(),
+                .imePadding()
+                .semantics { testTagsAsResourceId = true },
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
@@ -182,6 +199,97 @@ fun ProfileScreen(
                                 }
                             },
                         )
+                    }
+                }
+
+                SectionLabel(stringResource(R.string.profile_custom_theme))
+                Text(
+                    text = stringResource(R.string.profile_custom_hint),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    theme.stops.forEachIndexed { index, hex ->
+                        StopChip(
+                            hex = hex,
+                            selected = index == stopIndex,
+                            onClick = { stopIndex = index },
+                            modifier = Modifier.testTag("stop_$index"),
+                        )
+                    }
+                    if (theme.stops.size < ProfileTheme.MAX_STOPS) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                                .clickable {
+                                    theme = theme.withStopAdded(
+                                        NitroThemes.custom.firstOrNull { it !in theme.stops }
+                                            ?: NitroThemes.custom.first(),
+                                    )
+                                    stopIndex = theme.stops.lastIndex.coerceAtLeast(0)
+                                }
+                                .testTag("stop_add"),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("+", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    if (theme.stops.size > ProfileTheme.MIN_STOPS) {
+                        TextButton(
+                            onClick = {
+                                theme = theme.withoutStop(stopIndex)
+                                stopIndex = stopIndex.coerceAtMost(theme.stops.lastIndex)
+                            },
+                            modifier = Modifier.testTag("stop_remove"),
+                        ) {
+                            Text(stringResource(R.string.profile_stop_remove))
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    NitroThemes.custom.forEach { hex ->
+                        AccentSwatch(
+                            hex = hex,
+                            selected = theme.stops.getOrNull(stopIndex) == hex,
+                            onClick = {
+                                theme = if (stopIndex < theme.stops.size) {
+                                    theme.withStop(stopIndex, hex)
+                                } else {
+                                    theme.withStopAdded(hex)
+                                }
+                            },
+                        )
+                    }
+                }
+
+                SectionLabel(stringResource(R.string.profile_texture))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    (listOf(null) + ProfileTheme.TEXTURES).forEach { texture ->
+                        val label = when (texture) {
+                            "dots" -> R.string.profile_texture_dots
+                            "grid" -> R.string.profile_texture_grid
+                            "diagonal" -> R.string.profile_texture_diagonal
+                            else -> R.string.profile_texture_none
+                        }
+                        Surface(
+                            color = if (theme.texture == texture) ChatNookColors.Blurple
+                            else MaterialTheme.colorScheme.surfaceVariant,
+                            shape = RoundedCornerShape(8.dp),
+                            onClick = { theme = theme.copy(texture = texture) },
+                            modifier = Modifier.testTag("texture_${texture ?: "none"}"),
+                        ) {
+                            Text(
+                                text = stringResource(label),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (theme.texture == texture) Color.White
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            )
+                        }
                     }
                 }
 
@@ -274,6 +382,8 @@ private fun ProfileCard(
                 .height(120.dp)
                 .background(brush),
         ) {
+            // A texture only shows over the gradient; a real banner image covers it.
+            if (profile?.bannerUrl == null) TextureOverlay(theme.texture)
             profile?.bannerUrl?.let { url ->
                 AsyncImage(
                     model = url,
@@ -404,6 +514,31 @@ private fun ThemeSwatch(
 }
 
 @Composable
+private fun StopChip(
+    hex: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .size(40.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(HexColor.parse(hex)?.toInt() ?: 0xFF5865F2.toInt()))
+            .border(
+                width = if (selected) 3.dp else 1.dp,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.outline
+                },
+                shape = RoundedCornerShape(8.dp),
+            )
+            .clickable(onClick = onClick),
+    )
+}
+
+@Composable
 private fun AccentSwatch(hex: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
@@ -421,6 +556,56 @@ private fun AccentSwatch(hex: String, selected: Boolean, onClick: () -> Unit) {
     )
 }
 
+/** Draws the selected overlay above the gradient. Kept subtle so text stays readable. */
+@Composable
+private fun TextureOverlay(texture: String?) {
+    if (texture == null) return
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val tint = Color.White.copy(alpha = 0.10f)
+        val step = 16.dp.toPx()
+        when (texture) {
+            "dots" -> {
+                var y = step / 2
+                while (y < size.height) {
+                    var x = step / 2
+                    while (x < size.width) {
+                        drawCircle(tint, radius = 1.4.dp.toPx(), center = Offset(x, y))
+                        x += step
+                    }
+                    y += step
+                }
+            }
+
+            "grid" -> {
+                var x = 0f
+                while (x < size.width) {
+                    drawLine(tint, Offset(x, 0f), Offset(x, size.height), 1.dp.toPx())
+                    x += step
+                }
+                var y = 0f
+                while (y < size.height) {
+                    drawLine(tint, Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
+                    y += step
+                }
+            }
+
+            "diagonal" -> {
+                val gap = 18.dp.toPx()
+                var x = -size.height
+                while (x < size.width) {
+                    drawLine(
+                        tint,
+                        Offset(x, 0f),
+                        Offset(x + size.height, size.height),
+                        1.dp.toPx(),
+                    )
+                    x += gap
+                }
+            }
+        }
+    }
+}
+
 /** Built-in Nitro presets. Stops are hex so they round-trip through the `theme` jsonb. */
 object NitroThemes {
     data class Preset(val name: String, val stops: List<String>, val labelRes: Int)
@@ -431,6 +616,12 @@ object NitroThemes {
         Preset("ocean", listOf("#00C6FF", "#0072FF", "#001E4D"), R.string.profile_theme_ocean),
         Preset("forest", listOf("#43C6AC", "#191654", "#0B3D2E"), R.string.profile_theme_forest),
         Preset("neon", listOf("#F72585", "#7209B7", "#3A0CA3"), R.string.profile_theme_neon),
+    )
+
+    /** Colours offered by the custom editor; any hex is accepted from the server. */
+    val custom = listOf(
+        "#FF7A18", "#F72585", "#7209B7", "#4361EE", "#00C6FF",
+        "#43C6AC", "#57F287", "#FEE75C", "#ED4245", "#95A5A6",
     )
 
     val accents = listOf("#5865F2", "#EB459E", "#3BA55D", "#FAA61A", "#ED4245", "#9B59B6")

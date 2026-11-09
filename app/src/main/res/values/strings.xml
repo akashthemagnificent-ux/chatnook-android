@@ -100,6 +100,15 @@
     <string name="profile_theme_ocean">Ocean</string>
     <string name="profile_theme_forest">Forest</string>
     <string name="profile_theme_neon">Neon</string>
+    <string name="profile_custom_theme">Custom gradient</string>
+    <string name="profile_custom_hint">Pick a stop, then tap a colour.</string>
+    <string name="profile_stop_add">Add colour</string>
+    <string name="profile_stop_remove">Remove colour</string>
+    <string name="profile_texture">Texture</string>
+    <string name="profile_texture_none">None</string>
+    <string name="profile_texture_dots">Dots</string>
+    <string name="profile_texture_grid">Grid</string>
+    <string name="profile_texture_diagonal">Diagonal</string>
     <string name="profile_badge_early">Early</string>
     <string name="profile_badge_nitro">Nitro</string>
     <string name="profile_badge_staff">Staff</string>

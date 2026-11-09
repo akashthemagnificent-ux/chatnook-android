@@ -156,20 +156,56 @@ data class Attachment(
 data class ProfileTheme(
     val preset: String? = null,
     val stops: List<String> = emptyList(),
+    /** Optional overlay drawn above the gradient: [TEXTURES] or null. */
+    val texture: String? = null,
 ) {
     val isGradient: Boolean get() = stops.size >= 2
 
+    /** A hand-built theme, as opposed to one of the named presets. */
+    val isCustom: Boolean get() = preset == null && isGradient
+
     companion object {
         val None = ProfileTheme()
+
+        /** Textures the client knows how to draw; unknown values are dropped on read. */
+        val TEXTURES = listOf("dots", "grid", "diagonal")
+
+        /** A custom theme needs two or three readable stops, like Discord's editor. */
+        const val MIN_STOPS = 2
+        const val MAX_STOPS = 3
 
         fun fromJson(json: JsonObject?): ProfileTheme {
             if (json == null) return None
             return ProfileTheme(
                 preset = json.str("preset"),
                 stops = json.strList("stops").filter { HexColor.isValid(it) }.take(5),
+                texture = json.str("texture")?.takeIf { it in TEXTURES },
             )
         }
     }
+}
+
+/** Replaces one stop without disturbing the others; used by the theme editor. */
+fun ProfileTheme.withStop(index: Int, hex: String): ProfileTheme {
+    if (!HexColor.isValid(hex) || index !in stops.indices) return this
+    return copy(stops = stops.toMutableList().also { it[index] = hex }, preset = null)
+}
+
+/** Adds a stop when there is room, otherwise replaces the last one. */
+fun ProfileTheme.withStopAdded(hex: String): ProfileTheme {
+    if (!HexColor.isValid(hex)) return this
+    val next = when {
+        stops.size < ProfileTheme.MAX_STOPS -> stops + hex
+        stops.isEmpty() -> listOf(hex)
+        else -> stops.dropLast(1) + hex
+    }
+    return copy(stops = next, preset = null)
+}
+
+/** Never leaves fewer than [ProfileTheme.MIN_STOPS] stops; the editor hides it there. */
+fun ProfileTheme.withoutStop(index: Int): ProfileTheme {
+    if (index !in stops.indices || stops.size <= ProfileTheme.MIN_STOPS) return this
+    return copy(stops = stops.filterIndexed { i, _ -> i != index }, preset = null)
 }
 
 /** Parses `#RRGGBB` / `#AARRGGBB` into an ARGB int; null when malformed. */

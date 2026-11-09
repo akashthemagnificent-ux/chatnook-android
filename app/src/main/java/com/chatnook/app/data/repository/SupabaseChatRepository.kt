@@ -899,6 +899,7 @@ class SupabaseChatRepository : ChatRepository {
                     "theme",
                     buildJsonObject {
                         profile.theme.preset?.let { put("preset", it) }
+                        profile.theme.texture?.let { put("texture", it) }
                         put(
                             "stops",
                             kotlinx.serialization.json.JsonArray(
