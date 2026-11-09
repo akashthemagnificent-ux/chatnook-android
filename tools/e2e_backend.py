@@ -421,6 +421,54 @@ def run(created_users, created_guilds):
     st2, joined = Api(f_tok).rpc("join_guild", {"invite_code": code})
     check("expired invite is rejected", st == 200 and st2 >= 400, f"{st} {st2} {joined}")
 
+    print("roles + permissions")
+    st, rows = a.get(f"/rest/v1/roles?select=id,is_everyone&guild_id=eq.{gid}&is_everyone=is.true")
+    everyone_id = rows[0]["id"] if st == 200 and rows else None
+    check("guild has an everyone role", everyone_id is not None, f"{st} {rows}")
+
+    st, owner_bits = a.rpc("my_permissions", {"gid": gid})
+    check("owner resolves to every permission", st == 200 and owner_bits == 4095, f"{st} {owner_bits}")
+
+    st, member_bits = b.rpc("my_permissions", {"gid": gid})
+    everyone_bits = 1 | 2 | 32 | 256 | 512 | 1024
+    check("member gets the everyone bits", st == 200 and member_bits == everyone_bits,
+          f"{st} {member_bits}")
+
+    st, rid = a.rpc("create_role", {"gid": gid, "p_name": "Moderator",
+                                    "p_color": 5760135, "p_permissions": 8 | 16})
+    check("create_role rpc", st == 200 and isinstance(rid, str), f"{st} {rid}")
+    st, _ = b.rpc("create_role", {"gid": gid, "p_name": "Nope", "p_permissions": 4095})
+    check("member cannot create roles", st >= 400, st)
+
+    if st == 200 or isinstance(rid, str):
+        st, _ = a.rpc("update_role", {"p_role_id": rid, "p_name": "Mod",
+                                      "p_color": 5760135, "p_permissions": 8 | 16})
+        check("update_role rpc", st in (200, 204), st)
+
+        st, _ = a.rpc("set_member_roles", {"gid": gid, "member_id": b_uid, "role_ids": [rid]})
+        check("set_member_roles rpc", st in (200, 204), st)
+        st, bits = b.rpc("my_permissions", {"gid": gid})
+        check("assigned role grants its bits", st == 200 and bits == (everyone_bits | 8 | 16),
+              f"{st} {bits}")
+
+        st, _ = b.rpc("set_member_roles", {"gid": gid, "member_id": a_uid, "role_ids": []})
+        check("member cannot assign roles", st >= 400, st)
+
+        st, rows = a.get(f"/rest/v1/member_roles?select=role_id&guild_id=eq.{gid}&user_id=eq.{b_uid}")
+        check("assignment persisted", st == 200 and [r["role_id"] for r in rows] == [rid],
+              f"{st} {rows}")
+
+        st, _ = a.rpc("set_member_roles",
+                      {"gid": gid, "member_id": b_uid, "role_ids": [everyone_id]})
+        st2, rows = a.get(f"/rest/v1/member_roles?select=role_id&guild_id=eq.{gid}&user_id=eq.{b_uid}")
+        check("everyone cannot be assigned explicitly", rows == [], f"{st} {st2} {rows}")
+
+        st, _ = a.rpc("delete_role", {"p_role_id": rid})
+        check("delete_role rpc", st in (200, 204), st)
+
+    st, _ = a.rpc("delete_role", {"p_role_id": everyone_id})
+    check("everyone role cannot be deleted", st >= 400, st)
+
     print("server delete")
     b.delete(f"/rest/v1/guilds?id=eq.{gid}")
     check("member cannot delete guild",

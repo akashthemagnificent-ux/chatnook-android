@@ -134,6 +134,39 @@
     <string name="channel_delete_body">Delete #%1$s and every message in it?</string>
     <string name="channel_delete_confirm">Delete</string>
 
+    <!-- Roles and permissions -->
+    <string name="roles_title">Roles</string>
+    <string name="roles_create">Create role</string>
+    <string name="roles_empty">No roles yet. @everyone covers basic access.</string>
+    <string name="roles_everyone_note">Everyone in the server holds this role.</string>
+    <string name="roles_editor_title">Edit role</string>
+    <string name="roles_new_title">New role</string>
+    <string name="roles_name">Role name</string>
+    <string name="roles_color">Colour</string>
+    <string name="roles_color_none">None</string>
+    <string name="roles_delete">Delete role</string>
+    <string name="roles_delete_body">Delete %1$s? Members keep their other roles.</string>
+    <string name="roles_admin_note">Administrator grants every permission, including future ones.</string>
+    <plurals name="roles_member_count">
+        <item quantity="one">%1$d member</item>
+        <item quantity="other">%1$d members</item>
+    </plurals>
+    <string name="member_roles_title">Roles</string>
+    <string name="member_roles_save">Save roles</string>
+    <string name="member_roles_hint">Tap a role to add or remove it.</string>
+    <string name="perm_view_channel">View channels</string>
+    <string name="perm_send_messages">Send messages</string>
+    <string name="perm_manage_messages">Manage messages</string>
+    <string name="perm_manage_channels">Manage channels</string>
+    <string name="perm_manage_roles">Manage roles</string>
+    <string name="perm_create_invite">Create invites</string>
+    <string name="perm_kick_members">Kick members</string>
+    <string name="perm_administrator">Administrator</string>
+    <string name="perm_mention_everyone">Mention everyone</string>
+    <string name="perm_attach_files">Attach files</string>
+    <string name="perm_add_reactions">Add reactions</string>
+    <string name="perm_manage_guild">Manage server</string>
+
     <!-- Shared actions -->
     <string name="action_create">Create</string>
     <string name="action_cancel">Cancel</string>

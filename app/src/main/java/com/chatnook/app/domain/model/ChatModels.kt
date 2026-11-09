@@ -25,6 +25,11 @@ internal fun JsonObject.str(key: String): String? = this[key]?.jsonPrimitive?.co
 internal fun JsonObject.int(key: String): Int =
     this[key]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
 
+internal fun JsonObject.long(key: String): Long =
+    this[key]?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: 0L
+
+internal fun JsonObject.boolean(key: String): Boolean? = this[key]?.jsonPrimitive?.booleanOrNull
+
 internal fun JsonObject.strList(key: String): List<String> =
     (this[key] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
 

@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -51,8 +52,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.chatnook.app.R
+import com.chatnook.app.domain.model.GuildRole
 import com.chatnook.app.domain.model.Member
 import com.chatnook.app.domain.model.MemberGroup
+import com.chatnook.app.domain.model.PermissionBits
+import com.chatnook.app.domain.model.has
 import com.chatnook.app.ui.theme.ChatNookColors
 import kotlinx.coroutines.launch
 
@@ -65,6 +69,9 @@ fun MembersScreen(
 ) {
     val groups by viewModel.memberGroups.collectAsStateWithLifecycle()
     val online by viewModel.onlineUsers.collectAsStateWithLifecycle()
+    val roles by viewModel.roles.collectAsStateWithLifecycle()
+    val permissions by viewModel.permissions.collectAsStateWithLifecycle()
+    val canManageRoles = permissions has PermissionBits.MANAGE_ROLES
     var selected by remember { mutableStateOf<Member?>(null) }
     val scope = rememberCoroutineScope()
     val total = groups.sumOf { it.members.size }
@@ -120,6 +127,9 @@ fun MembersScreen(
         ProfileSheet(
             member = member,
             online = member.userId in online,
+            assignableRoles = roles.filter { !it.isEveryone },
+            canManageRoles = canManageRoles,
+            onSaveRoles = { ids -> viewModel.setMemberRoles(member, ids) },
             onDismiss = { selected = null },
             onMessage = {
                 scope.launch {
@@ -232,12 +242,15 @@ private fun PresenceDot(online: Boolean, modifier: Modifier = Modifier) {
     )
 }
 
-/** Banner, avatar and badges, plus the one action people actually want: message them. */
+/** Banner, avatar and badges, plus role assignment for managers and "message". */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProfileSheet(
     member: Member,
     online: Boolean,
+    assignableRoles: List<GuildRole>,
+    canManageRoles: Boolean,
+    onSaveRoles: (List<String>) -> Unit,
     onDismiss: () -> Unit,
     onMessage: () -> Unit,
 ) {
@@ -314,6 +327,67 @@ private fun ProfileSheet(
                                 .padding(horizontal = 6.dp, vertical = 2.dp),
                         )
                     }
+                }
+            }
+
+            if (canManageRoles && assignableRoles.isNotEmpty() && !member.isOwner) {
+                var picked by remember(member.userId) { mutableStateOf(member.roleIds.toSet()) }
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.padding(vertical = 12.dp),
+                )
+                Text(
+                    text = stringResource(R.string.member_roles_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                )
+                Text(
+                    text = stringResource(R.string.member_roles_hint),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                )
+                assignableRoles.forEach { role ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                picked = if (role.id in picked) picked - role.id else picked + role.id
+                            }
+                            .testTag("assign_${role.name}")
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = role.id in picked,
+                            onCheckedChange = null,
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    role.color?.let { Color(it) }
+                                        ?: MaterialTheme.colorScheme.outline,
+                                ),
+                        )
+                        Text(
+                            text = role.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+                }
+                Button(
+                    onClick = { onSaveRoles(picked.toList()) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                        .testTag("member_roles_save"),
+                ) {
+                    Text(stringResource(R.string.member_roles_save))
                 }
             }
 

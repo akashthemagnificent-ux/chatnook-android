@@ -5,6 +5,7 @@ import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
 import com.chatnook.app.domain.model.DmSummary
 import com.chatnook.app.domain.model.Guild
+import com.chatnook.app.domain.model.GuildRole
 import com.chatnook.app.domain.model.Invite
 import com.chatnook.app.domain.model.Member
 import com.chatnook.app.domain.model.OutgoingImage
@@ -112,6 +113,21 @@ interface ChatRepository {
 
     /** Redeems an invite code; returns the guild id the user joined. */
     suspend fun joinGuild(code: String): String
+
+    /** Roles of a guild, highest position first, kept live. */
+    fun getRoles(guildId: String): Flow<List<GuildRole>>
+
+    /** The caller's resolved permission bits in a guild; 0 for outsiders. */
+    fun getMyPermissions(guildId: String): Flow<Long>
+
+    suspend fun createRole(guildId: String, name: String, color: Int?, permissions: Long): String
+
+    suspend fun updateRole(roleId: String, name: String, color: Int?, permissions: Long)
+
+    suspend fun deleteRole(roleId: String)
+
+    /** Replaces every role of one member in one call; owner only. */
+    suspend fun setMemberRoles(guildId: String, userId: String, roleIds: List<String>)
 
     suspend fun getProfile(userId: String): Profile?
 
