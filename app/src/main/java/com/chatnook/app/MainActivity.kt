@@ -1,6 +1,7 @@
 package com.chatnook.app
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -17,6 +18,9 @@ import io.github.jan.supabase.auth.handleDeeplinks
 
 class MainActivity : ComponentActivity() {
 
+    // Lint wants Fragment 1.3.0+; the only fragment on the classpath is an unused
+    // 1.1.0 pulled in by play-services-basement, and this call is in an Activity.
+    @SuppressLint("InvalidFragmentVersionForActivityResult")
     private val askForNotifications =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
