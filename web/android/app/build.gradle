@@ -3,6 +3,8 @@ apply plugin: 'com.android.application'
 // CI passes these as -P flags; a local build simply skips signing.
 def chatnookStore = project.findProperty('CHATNOOK_KEYSTORE_PATH') ?: ''
 def hasReleaseKey = chatnookStore && file(chatnookStore).exists()
+def chatnookVersionCode = (project.findProperty('CHATNOOK_VERSION_CODE') ?: '1').toString().toInteger()
+def chatnookVersionName = (project.findProperty('CHATNOOK_VERSION_NAME') ?: '1.0').toString()
 
 android {
     namespace = "com.chatnook.web"
@@ -11,8 +13,8 @@ android {
         applicationId "com.chatnook.web"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode (project.findProperty('CHATNOOK_VERSION_CODE') ?: '1').toInteger()
-        versionName project.findProperty('CHATNOOK_VERSION_NAME') ?: '1.0'
+        versionCode chatnookVersionCode
+        versionName chatnookVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

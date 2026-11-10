@@ -90,19 +90,22 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           chmod +x gradlew
+          VERSION_NAME="${GITHUB_REF_NAME#v}"
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then VERSION_NAME="0.4.${GITHUB_RUN_NUMBER}"; fi
           ./gradlew assembleRelease --no-daemon --stacktrace \
             -PCHATNOOK_KEYSTORE_PATH="$RUNNER_TEMP/chatnook.jks" \
             -PCHATNOOK_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" \
             -PCHATNOOK_KEY_ALIAS="$KEY_ALIAS" \
             -PCHATNOOK_KEY_PASSWORD="$KEY_PASSWORD" \
             -PCHATNOOK_VERSION_CODE="${GITHUB_RUN_NUMBER:-1}" \
-            -PCHATNOOK_VERSION_NAME="${GITHUB_REF_NAME#v}"
+            -PCHATNOOK_VERSION_NAME="$VERSION_NAME"
 
       - name: Name the artifact
         run: |
+          VERSION_NAME="${GITHUB_REF_NAME#v}"
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then VERSION_NAME="0.4.${GITHUB_RUN_NUMBER}"; fi
           mkdir -p out
-          cp web/android/app/build/outputs/apk/release/app-release.apk \
-             "out/chatnook-web-${GITHUB_REF_NAME#v}.apk"
+          cp web/android/app/build/outputs/apk/release/app-release.apk "out/chatnook-web-$VERSION_NAME.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
