@@ -10,11 +10,10 @@ on:
     paths:
       - 'web/**'
       - '.github/workflows/release-web-apk.yml'
+  # No paths filter on push: a release tag must always produce an APK.
   push:
     branches: [main]
-    paths:
-      - 'web/**'
-      - '.github/workflows/release-web-apk.yml'
+    tags: ['v*']
 
 concurrency:
   group: web-apk-${{ github.ref }}
