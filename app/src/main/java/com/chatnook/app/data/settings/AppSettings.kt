@@ -18,6 +18,7 @@ enum class ThemeMode { Dark, Light, System }
 object AppSettings {
     private const val FILE = "settings"
     private const val KEY_THEME = "theme_mode"
+    private const val KEY_DISMISSED = "dismissed_update"
 
     private var prefs: SharedPreferences? = null
 
@@ -35,5 +36,12 @@ object AppSettings {
     fun setThemeMode(mode: ThemeMode) {
         _themeMode.value = mode
         prefs?.edit()?.putString(KEY_THEME, mode.name)?.apply()
+    }
+
+    /** The version whose update prompt was dismissed, so it is not shown twice. */
+    fun dismissedUpdate(): String = prefs?.getString(KEY_DISMISSED, null).orEmpty()
+
+    fun dismissUpdate(version: String) {
+        prefs?.edit()?.putString(KEY_DISMISSED, version)?.apply()
     }
 }

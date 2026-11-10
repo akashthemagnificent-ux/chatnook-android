@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import com.chatnook.app.data.Supabase
+import com.chatnook.app.data.diagnostics.CrashLog
 import com.chatnook.app.data.settings.AppSettings
 import com.chatnook.app.data.push.Notifications
 import com.chatnook.app.data.push.PendingChat
@@ -29,6 +30,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         AppSettings.init(applicationContext)
+        CrashLog.install(applicationContext)
         Notifications.ensureChannel(this)
         askForNotificationsOnce()
         // Magic-link / recovery links land here as chatnook://auth?code=...

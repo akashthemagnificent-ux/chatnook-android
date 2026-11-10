@@ -1,15 +1,25 @@
 package com.chatnook.app.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -17,7 +27,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.chatnook.app.BuildConfig
+import com.chatnook.app.R
+import com.chatnook.app.data.diagnostics.CrashLog
 import com.chatnook.app.data.push.PendingChat
+import com.chatnook.app.data.settings.AppSettings
+import com.chatnook.app.data.update.Update
+import com.chatnook.app.data.update.UpdateCheck
 import com.chatnook.app.data.push.PushRegistrar
 import com.chatnook.app.ui.auth.AuthScreen
 import com.chatnook.app.ui.auth.AuthViewModel
@@ -46,6 +62,7 @@ fun ChatNookApp() {
     val sessionStatus by authViewModel.sessionStatus.collectAsStateWithLifecycle()
 
     ChatNookTheme {
+        Box(modifier = Modifier.fillMaxSize()) {
         // Auth state drives navigation; there are no manual nav flags to keep in sync.
         when (sessionStatus) {
             is SessionStatus.Authenticated -> SignedInRoutes(
@@ -61,7 +78,47 @@ fun ChatNookApp() {
 
             else -> AuthScreen(viewModel = authViewModel)
         }
+        CrashReport()
+        }
     }
+}
+
+/** Offers to share the trace of the previous run's crash, once. */
+@Composable
+private fun CrashReport() {
+    val context = LocalContext.current
+    var trace by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) { trace = CrashLog.take(context) }
+    val report = trace ?: return
+    AlertDialog(
+        onDismissRequest = { trace = null },
+        title = { Text(stringResource(R.string.crash_title)) },
+        text = { Text(stringResource(R.string.crash_body)) },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    trace = null
+                    runCatching {
+                        context.startActivity(
+                            Intent.createChooser(
+                                Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, "ChatNook crash report")
+                                    putExtra(Intent.EXTRA_TEXT, report)
+                                },
+                                null,
+                            ),
+                        )
+                    }
+                },
+            ) { Text(stringResource(R.string.crash_share)) }
+        },
+        dismissButton = {
+            TextButton(onClick = { trace = null }) {
+                Text(stringResource(R.string.crash_dismiss))
+            }
+        },
+    )
 }
 
 @Composable
@@ -80,6 +137,45 @@ private fun SignedInRoutes(authViewModel: AuthViewModel) {
         navController.navigate(chatRoute(route.channelId, route.channelName, route.isDm)) {
             popUpTo(ROUTE_CHANNELS) { inclusive = false }
         }
+    }
+
+    // One check per launch; a failure is silent and the app just runs.
+    val context = LocalContext.current
+    var update by remember { mutableStateOf<Update?>(null) }
+    LaunchedEffect(Unit) {
+        val found = UpdateCheck.check(BuildConfig.VERSION_NAME) ?: return@LaunchedEffect
+        if (found.version != AppSettings.dismissedUpdate()) update = found
+    }
+    update?.let { pending ->
+        AlertDialog(
+            onDismissRequest = {
+                AppSettings.dismissUpdate(pending.version)
+                update = null
+            },
+            title = { Text(stringResource(R.string.update_title)) },
+            text = { Text(stringResource(R.string.update_body, pending.version)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        AppSettings.dismissUpdate(pending.version)
+                        update = null
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse(pending.pageUrl)),
+                            )
+                        }
+                    },
+                ) { Text(stringResource(R.string.update_now)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        AppSettings.dismissUpdate(pending.version)
+                        update = null
+                    },
+                ) { Text(stringResource(R.string.update_later)) }
+            },
+        )
     }
 
     NavHost(
