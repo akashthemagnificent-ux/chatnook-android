@@ -31,11 +31,14 @@ android {
         applicationId = "com.chatnook.app"
         minSdk = 24
         targetSdk = 36
-        // Monotonic across CI runs so an APK always installs over the previous one.
-        // A local build stays at 1 / 0.1.0 and is never released.
+        // Monotonic across CI runs so an APK always installs over the previous one; the
+        // name comes from the tag on a release build so the app and the release page
+        // agree. A local build stays at 1 / 0.1.0 and is never released.
         val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        val tag = System.getenv("GITHUB_REF_NAME")
+            ?.takeIf { System.getenv("GITHUB_REF_TYPE") == "tag" }
         versionCode = buildNumber
-        versionName = "0.1.$buildNumber"
+        versionName = tag?.removePrefix("v") ?: "0.1.$buildNumber"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
