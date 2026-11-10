@@ -15,6 +15,7 @@ on:
       - 'docs/**'
   push:
     branches: [main]
+    tags: ['v*']
     paths-ignore:
       - '**.md'
       - 'plans/**'
@@ -28,7 +29,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout
@@ -113,6 +114,17 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 30
+
+      # A pushed tag is the release: the APK goes on the release page, not just the
+      # artifact list, so friends can download it without a GitHub account.
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" app/build/outputs/apk/release/*.apk \
+            --title "ChatNook ${GITHUB_REF_NAME#v}" \
+            --generate-notes
 
       - name: Upload mapping file
         uses: actions/upload-artifact@v4

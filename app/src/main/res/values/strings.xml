@@ -92,6 +92,14 @@
 
     <!-- Profile / Nitro cosmetics -->
     <string name="profile_title">Profile</string>
+    <string name="crash_title">ChatNook closed unexpectedly</string>
+    <string name="crash_body">A report from last time is saved on this device. Share it so the problem can be fixed.</string>
+    <string name="crash_share">Share report</string>
+    <string name="crash_dismiss">Discard</string>
+    <string name="update_title">Update available</string>
+    <string name="update_body">ChatNook %1$s is out. Download it from the releases page and install over this one.</string>
+    <string name="update_now">Download</string>
+    <string name="update_later">Later</string>
     <string name="appearance_title">Appearance</string>
     <string name="appearance_dark">Dark</string>
     <string name="appearance_light">Light</string>
