@@ -9,8 +9,10 @@ install the APK directly.
 2. Download **app-release.apk**.
 3. Tap the downloaded file. Android will warn that the app is from an unknown source —
    allow it for your browser or file manager, then install.
-4. Open ChatNook and sign in. Either create an account with an email address (you get a
-   magic link) or tap **Continue anonymously**.
+4. Open ChatNook and sign in. Either create an account with an email address and a
+   password, send yourself a magic link, or tap **Continue without an account**.
+   Forgotten passwords can be reset from the login screen — the emailed link brings
+   you back into the app to choose a new one.
 
 > **Pick email if you might change phones.** An anonymous account lives only on the
 > device that created it. If you uninstall the app or lose the phone, that account is

@@ -17,6 +17,10 @@
     <string name="auth_anonymous_desc">This account lives only on this phone. Reinstalling the app or clearing its data loses it for good — use email to keep it.</string>
     <string name="auth_or">or</string>
     <string name="auth_forgot">Forgot password?</string>
+    <string name="reset_title">Set a new password</string>
+    <string name="reset_body">You\'re signed in from the reset link. Choose a new password for this account.</string>
+    <string name="reset_save">Save password</string>
+    <string name="reset_later">Later</string>
 
     <!-- Deep-link scheme/host for magic links; must match Supabase > Auth > URL Config -->
     <string name="supabase_oauth_scheme">chatnook</string>

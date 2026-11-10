@@ -5,9 +5,14 @@ import android.net.Uri
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -19,7 +24,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -37,6 +45,7 @@ import com.chatnook.app.data.update.UpdateCheck
 import com.chatnook.app.data.push.PushRegistrar
 import com.chatnook.app.ui.auth.AuthScreen
 import com.chatnook.app.ui.auth.AuthViewModel
+import com.chatnook.app.ui.auth.PendingPasswordReset
 import com.chatnook.app.ui.chat.ChannelListScreen
 import com.chatnook.app.ui.chat.ChatScreen
 import com.chatnook.app.ui.chat.ChatViewModel
@@ -80,9 +89,68 @@ fun ChatNookApp() {
 
             else -> AuthScreen(viewModel = authViewModel)
         }
+        if (sessionStatus is SessionStatus.Authenticated) {
+            PasswordResetPrompt(authViewModel)
+        }
         CrashReport()
         }
     }
+}
+
+/** A recovery link signs the user in; this is where they actually pick a new password. */
+@Composable
+private fun PasswordResetPrompt(viewModel: AuthViewModel) {
+    val pending by PendingPasswordReset.requested.collectAsStateWithLifecycle()
+    if (!pending) return
+    val ui by viewModel.ui.collectAsStateWithLifecycle()
+    var password by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = { PendingPasswordReset.consume() },
+        title = { Text(stringResource(R.string.reset_title)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.reset_body))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text(stringResource(R.string.auth_password_hint)) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                        .testTag("reset_password"),
+                )
+                OutlinedTextField(
+                    value = confirm,
+                    onValueChange = { confirm = it },
+                    label = { Text(stringResource(R.string.auth_confirm_password_hint)) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                        .testTag("reset_confirm"),
+                )
+                ui.error?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { viewModel.setNewPassword(password, confirm) },
+                enabled = !ui.isLoading,
+            ) { Text(stringResource(R.string.reset_save)) }
+        },
+        dismissButton = {
+            TextButton(onClick = { PendingPasswordReset.consume() }) {
+                Text(stringResource(R.string.reset_later))
+            }
+        },
+    )
 }
 
 /** Offers to share the trace of the previous run's crash, once. */

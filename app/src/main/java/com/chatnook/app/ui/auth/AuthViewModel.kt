@@ -130,8 +130,28 @@ class AuthViewModel : ViewModel() {
         }
         viewModelScope.launch {
             callAuth("Password reset link sent to $email.") { auth ->
-                auth.resetPasswordForEmail(email)
+                auth.resetPasswordForEmail(email, RECOVERY_REDIRECT)
             }
         }
+    }
+
+    /** Called from the dialog the recovery deep link opens, after the exchange signs in. */
+    fun setNewPassword(password: String, confirm: String) {
+        when {
+            password.length < 6 ->
+                _ui.update { it.copy(error = "Password must be at least 6 characters") }
+            password != confirm -> _ui.update { it.copy(error = "Passwords do not match") }
+            else -> viewModelScope.launch {
+                callAuth("Password updated.") { auth ->
+                    auth.updateUser { this.password = password }
+                }
+                if (_ui.value.error == null) PendingPasswordReset.consume()
+            }
+        }
+    }
+
+    private companion object {
+        /** `type` survives the redirect so MainActivity can tell this from a magic link. */
+        const val RECOVERY_REDIRECT = "chatnook://auth?type=recovery"
     }
 }
