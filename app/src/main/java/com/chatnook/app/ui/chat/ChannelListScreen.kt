@@ -50,7 +50,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.res.pluralStringResource
@@ -244,14 +247,16 @@ fun ChannelListScreen(
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         items(channels, key = { it.channelId }) { channel ->
-                            ChannelRow(
-                                channel = channel,
-                                unread = unread[channel.channelId] ?: UnreadState.None,
-                                quiet = channelLevels[channel.channelId] == NotificationLevel.NONE,
-                                onClick = { onOpenChannel(channel.channelId, channel.name) },
-                                onLongClick = { channelMenu = channel },
-                            )
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                            Column(modifier = Modifier.animateItem()) {
+                                ChannelRow(
+                                    channel = channel,
+                                    unread = unread[channel.channelId] ?: UnreadState.None,
+                                    quiet = channelLevels[channel.channelId] == NotificationLevel.NONE,
+                                    onClick = { onOpenChannel(channel.channelId, channel.name) },
+                                    onLongClick = { channelMenu = channel },
+                                )
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                            }
                         }
                     }
                 }
@@ -525,10 +530,20 @@ private fun ChannelRow(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)?,
 ) {
+    val haptics = LocalHapticFeedback.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .combinedClickable(
+                role = Role.Button,
+                onClick = onClick,
+                onLongClick = onLongClick?.let { open ->
+                    {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        open()
+                    }
+                },
+            )
             .testTag("channel_${channel.name}")
             .padding(horizontal = 20.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),

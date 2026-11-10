@@ -33,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -60,6 +61,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.chatnook.app.R
+import com.chatnook.app.data.settings.AppSettings
+import com.chatnook.app.data.settings.ThemeMode
 import com.chatnook.app.domain.model.HexColor
 import com.chatnook.app.domain.model.Profile
 import com.chatnook.app.domain.model.ProfileTheme
@@ -342,6 +345,28 @@ fun ProfileScreen(
                     enabled = profile != null,
                 ) { Text(stringResource(R.string.profile_save)) }
 
+                Spacer(Modifier.height(24.dp))
+                SectionLabel(stringResource(R.string.appearance_title))
+                val mode by AppSettings.themeMode.collectAsStateWithLifecycle()
+                ThemeMode.entries.forEach { option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { AppSettings.setThemeMode(option) }
+                            .testTag("appearance_${option.name.lowercase()}")
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = mode == option, onClick = null)
+                        Text(
+                            text = stringResource(option.labelRes()),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+                }
+
                 Spacer(Modifier.height(8.dp))
                 TextButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
                     Text(
@@ -353,6 +378,12 @@ fun ProfileScreen(
             }
         }
     }
+}
+
+private fun ThemeMode.labelRes(): Int = when (this) {
+    ThemeMode.Dark -> R.string.appearance_dark
+    ThemeMode.Light -> R.string.appearance_light
+    ThemeMode.System -> R.string.appearance_system
 }
 
 @Composable

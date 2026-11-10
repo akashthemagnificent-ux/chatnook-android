@@ -1,5 +1,7 @@
 package com.chatnook.app.ui
 
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -26,6 +28,7 @@ import com.chatnook.app.ui.chat.MembersScreen
 import com.chatnook.app.ui.chat.ProfileScreen
 import com.chatnook.app.ui.chat.ServerSettingsScreen
 import com.chatnook.app.ui.theme.ChatNookTheme
+import com.chatnook.app.ui.theme.Motion
 import io.github.jan.supabase.auth.status.SessionStatus
 
 private const val ROUTE_CHANNELS = "channels"
@@ -79,7 +82,14 @@ private fun SignedInRoutes(authViewModel: AuthViewModel) {
         }
     }
 
-    NavHost(navController = navController, startDestination = ROUTE_CHANNELS) {
+    NavHost(
+        navController = navController,
+        startDestination = ROUTE_CHANNELS,
+        enterTransition = { fadeIn(Motion.enter) },
+        exitTransition = { fadeOut(Motion.exit) },
+        popEnterTransition = { fadeIn(Motion.enter) },
+        popExitTransition = { fadeOut(Motion.exit) },
+    ) {
         composable(ROUTE_CHANNELS) {
             ChannelListScreen(
                 viewModel = chatViewModel,

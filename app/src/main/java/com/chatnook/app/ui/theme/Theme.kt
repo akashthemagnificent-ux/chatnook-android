@@ -5,6 +5,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.chatnook.app.data.settings.AppSettings
+import com.chatnook.app.data.settings.ThemeMode
 
 private val ChatNookDarkScheme = darkColorScheme(
     primary = ChatNookColors.Blurple,
@@ -37,13 +41,17 @@ private val ChatNookLightScheme = lightColorScheme(
     error = ChatNookColors.Red,
 )
 
+/** Dark unless the person picked otherwise in Profile → Appearance. */
 @Composable
-fun ChatNookTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit,
-) {
+fun ChatNookTheme(content: @Composable () -> Unit) {
+    val mode by AppSettings.themeMode.collectAsStateWithLifecycle()
+    val dark = when (mode) {
+        ThemeMode.Dark -> true
+        ThemeMode.Light -> false
+        ThemeMode.System -> isSystemInDarkTheme()
+    }
     MaterialTheme(
-        colorScheme = if (darkTheme) ChatNookDarkScheme else ChatNookLightScheme,
+        colorScheme = if (dark) ChatNookDarkScheme else ChatNookLightScheme,
         typography = ChatNookTypography,
         content = content,
     )
