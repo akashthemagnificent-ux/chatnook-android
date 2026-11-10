@@ -19,6 +19,7 @@ import {
 import type { Channel, DmSummary, Guild, Member, Message, UnreadState } from '../lib/types'
 import { useAppStore } from '../store/app'
 import { useSession } from '../store/session'
+import { initPush, setPushChannelHandler } from '../lib/push'
 import type { Presence } from '../components/ui/avatar'
 import type { ConnectionStatus } from '../components/ConnectionBanner'
 
@@ -104,6 +105,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const channelSubRef = useRef<RealtimeChannel | null>(null)
   const globalSubRef = useRef<RealtimeChannel | null>(null)
   const presenceSubRef = useRef<RealtimeChannel | null>(null)
+  const channelGuildRef = useRef<Record<string, string>>({})
+  useEffect(() => { channelGuildRef.current = channelGuild }, [channelGuild])
+
+  // Push registration and tap-to-open. The handler reads the channel map through a
+  // ref so a notification never captures a stale guild.
+  useEffect(() => {
+    if (!configured || !userId) return
+    setPushChannelHandler((channelId) => {
+      const guildId = channelGuildRef.current[channelId]
+      if (guildId) setActiveGuildId(guildId)
+      setActiveChannelId(channelId)
+    })
+    void initPush(userId)
+    return () => setPushChannelHandler(null)
+  }, [configured, userId, setActiveGuildId, setActiveChannelId])
 
   // In preview mode the current user is 'preview'.
   const myId = userId ?? 'preview'

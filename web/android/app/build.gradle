@@ -7,10 +7,10 @@ def chatnookVersionCode = (project.findProperty('CHATNOOK_VERSION_CODE') ?: '1')
 def chatnookVersionName = (project.findProperty('CHATNOOK_VERSION_NAME') ?: '1.0').toString()
 
 android {
-    namespace = "com.chatnook.web"
+    namespace = "com.chatnook.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.chatnook.web"
+        applicationId "com.chatnook.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode chatnookVersionCode

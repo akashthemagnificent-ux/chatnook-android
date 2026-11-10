@@ -1,4 +1,4 @@
-package com.chatnook.web;
+package com.chatnook.app;
 
 import com.getcapacitor.BridgeActivity;
 

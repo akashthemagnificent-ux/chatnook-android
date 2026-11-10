@@ -1,10 +1,10 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
-// A separate id from the native app (com.chatnook.app) so both can be installed
-// during the redesign. Deep links are not used: the app is hash-routed and the
-// auth redirect is handled inside the webview.
+// The same package id as the native prototype, so this build updates ChatNook in
+// place instead of installing a second app. It also has to match the Firebase
+// Android app, or push registration is rejected.
 const config: CapacitorConfig = {
-  appId: 'com.chatnook.web',
+  appId: 'com.chatnook.app',
   appName: 'ChatNook',
   webDir: 'dist',
   android: {

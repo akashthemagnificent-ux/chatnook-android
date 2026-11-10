@@ -22,6 +22,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Password reset and magic links come back as chatnook://auth?code=… -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="chatnook" android:host="auth" />
+            </intent-filter>
+
         </activity>
 
         <provider
@@ -38,4 +46,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+ asks at runtime; the plugin's request is denied without this. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

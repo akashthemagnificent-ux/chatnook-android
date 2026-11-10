@@ -255,6 +255,17 @@ function imageDimensions(file: File): Promise<{ width: number; height: number }>
   })
 }
 
+// ---------------------------------------------------------------- push
+export async function savePushToken(userId: string, token: string): Promise<void> {
+  const { error } = await db().from('push_tokens').upsert({
+    user_id: userId,
+    token,
+    platform: 'web',
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'user_id,token' })
+  if (error) throw error
+}
+
 // ---------------------------------------------------------------- read state
 export async function markRead(channelId: string, messageId: string, userId: string): Promise<void> {
   const { error } = await db().from('read_states').upsert({

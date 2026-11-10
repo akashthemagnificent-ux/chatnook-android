@@ -183,7 +183,7 @@ Deno.serve(async (request) => {
 
   const { data: tokens } = await supabase
     .from("push_tokens")
-    .select("token")
+    .select("token,platform")
     .in("user_id", wanted);
   if (!tokens?.length) return new Response("no devices", { status: 200 });
 
@@ -203,7 +203,23 @@ Deno.serve(async (request) => {
   let sent = 0;
   const dead: string[] = [];
   await Promise.all(
-    tokens.map(async ({ token }) => {
+    tokens.map(async ({ token, platform }) => {
+      // The native app builds its own notification from the data payload. A
+      // Capacitor webview has no service to do that, so web tokens get a system
+      // notification block and the same data for the tap target.
+      const message: Record<string, unknown> = {
+        token,
+        data: {
+          channel_id: channel.id,
+          channel_name: channel.name ?? "",
+          dm: String(isDm),
+          title,
+          body,
+        },
+        android: { priority: "high" },
+      };
+      if (platform === "web") message.notification = { title, body };
+
       const response = await fetch(
         `https://fcm.googleapis.com/v1/projects/${account.project_id}/messages:send`,
         {
@@ -212,19 +228,7 @@ Deno.serve(async (request) => {
             Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            message: {
-              token,
-              data: {
-                channel_id: channel.id,
-                channel_name: channel.name ?? "",
-                dm: String(isDm),
-                title,
-                body,
-              },
-              android: { priority: "high" },
-            },
-          }),
+          body: JSON.stringify({ message }),
         },
       );
       if (response.ok) {

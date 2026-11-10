@@ -1,4 +1,4 @@
-name: Release APK
+name: Native prototype build
 
 on:
   workflow_dispatch:
@@ -15,7 +15,6 @@ on:
       - 'docs/**'
   push:
     branches: [main]
-    tags: ['v*']
     paths-ignore:
       - '**.md'
       - 'plans/**'
@@ -115,17 +114,8 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # A pushed tag is the release: the APK goes on the release page, not just the
-      # artifact list, so friends can download it without a GitHub account.
-      - name: Create release
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "$GITHUB_REF_NAME" app/build/outputs/apk/release/*.apk \
-            --title "ChatNook ${GITHUB_REF_NAME#v}" \
-            --generate-notes
-
+      # Releases are published from the web client now (release-web-apk.yml); this
+      # job stays as the rollback build for the native prototype.
       - name: Upload mapping file
         uses: actions/upload-artifact@v4
         with:

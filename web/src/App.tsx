@@ -13,6 +13,7 @@ import { OverlayHost } from './components/OverlayHost'
 import { ErrorBoundary, NotFound } from './components/RouteStates'
 import { Splash } from './components/Splash'
 import { Toaster } from './components/ui/toast'
+import { initDeepLinks } from './lib/deeplink'
 
 export default function App() {
   const status = useSession((s) => s.status)
@@ -20,6 +21,7 @@ export default function App() {
   const accent = useAppStore((s) => s.accent)
 
   useEffect(() => init(), [init])
+  useEffect(() => { initDeepLinks() }, [])
 
   // Accent lives in the store; paint it on <html> like the theme boot script does.
   useEffect(() => {

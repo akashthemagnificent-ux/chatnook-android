@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { getProfile } from '../data/api'
+import { authRedirect } from '../lib/deeplink'
 import type { Profile } from '../lib/types'
 
 export type SessionStatus = 'loading' | 'signed-out' | 'signed-in' | 'recovery'
@@ -80,7 +81,7 @@ export const useSession = create<SessionState>((set, get) => ({
   signInWithMagicLink: async (email) => {
     const { error } = await supabase!.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin + '/#/auth/callback' },
+      options: { emailRedirectTo: authRedirect() },
     })
     if (error) { set({ error: error.message }); throw error }
   },
@@ -92,7 +93,7 @@ export const useSession = create<SessionState>((set, get) => ({
 
   sendReset: async (email) => {
     const { error } = await supabase!.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/#/auth/callback?type=recovery',
+      redirectTo: authRedirect('recovery'),
     })
     if (error) { set({ error: error.message }); throw error }
   },
