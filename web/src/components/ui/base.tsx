@@ -11,18 +11,20 @@ const buttonVariants = cva(
   'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium ' +
     'transition-all duration-150 ease-out select-none active:scale-[0.98] ' +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-base ' +
-    'disabled:pointer-events-none disabled:opacity-45 [&_svg]:shrink-0',
+    'disabled:pointer-events-none [&_svg]:shrink-0',
   {
     variants: {
       variant: {
         primary:
-          'bg-brand text-ink-accent shadow-soft hover:bg-brand-strong hover:shadow-pop ' +
-          'relative overflow-hidden',
-        default: 'bg-elevated text-ink-primary border border-line/10 hover:bg-hover',
-        ghost: 'text-ink-secondary hover:bg-hover hover:text-ink-primary',
-        destructive: 'bg-danger/12 text-danger hover:bg-danger/20 border border-danger/20',
-        outline: 'border border-line/15 text-ink-primary hover:bg-hover hover:border-line/25',
-        link: 'text-brand underline-offset-4 hover:underline p-0 h-auto min-h-0',
+          'bg-brand-sheen bg-[length:200%_100%] text-ink-accent shadow-soft ' +
+          'hover:bg-right hover:shadow-glow relative overflow-hidden group/btn ' +
+          // A faded gradient reads as muddy brown on dark, so disabled goes neutral.
+          'disabled:bg-none disabled:bg-elevated disabled:!text-ink-muted disabled:shadow-none',
+        default: 'bg-elevated text-ink-primary border border-line/10 hover:bg-hover disabled:opacity-45',
+        ghost: 'text-ink-secondary hover:bg-hover hover:text-ink-primary disabled:opacity-45',
+        destructive: 'bg-danger/12 text-danger hover:bg-danger/20 border border-danger/20 disabled:opacity-45',
+        outline: 'border border-line/15 text-ink-primary hover:bg-hover hover:border-line/25 disabled:opacity-45',
+        link: 'text-brand underline-offset-4 hover:underline p-0 h-auto min-h-0 disabled:opacity-45',
       },
       size: {
         sm: 'h-9 min-h-[44px] sm:min-h-0 px-3 text-sm [&_svg]:size-4 rounded-sm',
@@ -49,11 +51,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       <Comp className={cn(buttonVariants({ variant, size }), className)} ref={ref} {...props}>
         {variant === 'primary' ? (
           <>
-            {/* magicui shimmer-button idea: a restrained sheen on hover only. */}
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-500 ease-out group-hover:translate-x-full"
-            />
+            {/* magicui shimmer-button idea: a restrained travelling sheen. */}
+            <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+              <span className="absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 animate-shine bg-sheen opacity-30 blur-[1px] group-disabled/btn:opacity-0" />
+            </span>
             {children}
           </>
         ) : (
@@ -82,8 +83,9 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
       ref={ref}
       className={cn(
         'flex h-11 w-full rounded-md border border-line/12 bg-base/40 px-3.5 py-2 text-base text-ink-primary',
-        'placeholder:text-ink-muted transition-colors duration-150',
-        'focus-visible:outline-none focus-visible:border-brand/60 focus-visible:ring-2 focus-visible:ring-brand/30',
+        'placeholder:text-ink-muted transition-[border-color,box-shadow,background-color] duration-150',
+        'hover:border-line/20',
+        'focus-visible:outline-none focus-visible:border-brand/60 focus-visible:ring-2 focus-visible:ring-brand/25 focus-visible:shadow-[0_0_24px_-6px_rgb(var(--brand)/0.45)]',
         'disabled:cursor-not-allowed disabled:opacity-50',
         'aria-[invalid=true]:border-danger aria-[invalid=true]:focus-visible:ring-danger/30',
         className,
@@ -100,8 +102,9 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTML
       ref={ref}
       className={cn(
         'flex w-full rounded-md border border-line/12 bg-base/40 px-3.5 py-2.5 text-base text-ink-primary',
-        'placeholder:text-ink-muted transition-colors duration-150 resize-none',
-        'focus-visible:outline-none focus-visible:border-brand/60 focus-visible:ring-2 focus-visible:ring-brand/30',
+        'placeholder:text-ink-muted transition-[border-color,box-shadow,background-color] duration-150 resize-none',
+        'hover:border-line/20',
+        'focus-visible:outline-none focus-visible:border-brand/60 focus-visible:ring-2 focus-visible:ring-brand/25 focus-visible:shadow-[0_0_24px_-6px_rgb(var(--brand)/0.45)]',
         'disabled:cursor-not-allowed disabled:opacity-50',
         className,
       )}
@@ -126,7 +129,14 @@ Label.displayName = 'Label'
 // ---------------------------------------------------------------- card
 export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('rounded-lg border border-line/10 bg-surface', className)} {...props} />
+    <div
+      ref={ref}
+      className={cn(
+        'relative rounded-lg border border-line/10 bg-surface shadow-[inset_0_1px_0_rgb(var(--line)/0.04)]',
+        className,
+      )}
+      {...props}
+    />
   ),
 )
 Card.displayName = 'Card'

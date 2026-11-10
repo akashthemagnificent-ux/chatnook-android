@@ -1,6 +1,7 @@
 // Chat view (spec §3.5): header, message list, composer. Wires the lightbox to
 // every image in the open conversation and the reply bar to the composer.
 import { useMemo, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Bell, Hash, Menu, Search, Users } from 'lucide-react'
 import { useChat } from '../../data/ChatContext'
 import { useAppStore } from '../../store/app'
@@ -8,13 +9,14 @@ import { useMediaQuery } from '../../lib/useMediaQuery'
 import { MessageList } from './MessageList'
 import { Composer } from './Composer'
 import { Button } from '../../components/ui/base'
+import { UserAvatar } from '../../components/ui/avatar'
 import { IconTooltip } from '../../components/ui/overlay'
 import { EmptyState } from '../../components/States'
 import { t } from '../../lib/i18n'
 import type { Attachment, Message } from '../../lib/types'
 
 export function ChatView({ onOpenDrawer }: { onOpenDrawer?: () => void }) {
-  const { activeChannel, activeDm, messages } = useChat()
+  const { activeChannel, activeDm, messages, activeChannelId } = useChat()
   const setCommandOpen = useAppStore((s) => s.setCommandOpen)
   const openSettings = useAppStore((s) => s.openSettings)
   const toggleMemberPanel = useAppStore((s) => s.toggleMemberPanel)
@@ -48,16 +50,20 @@ export function ChatView({ onOpenDrawer }: { onOpenDrawer?: () => void }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-base">
-      <header className="z-10 flex h-14 shrink-0 items-center gap-3 border-b border-line/10 bg-surface px-3 sm:px-4">
+      <header className="relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-line/10 bg-surface/70 px-3 backdrop-blur-xl after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-gradient-to-r after:from-transparent after:via-brand/25 after:to-transparent sm:px-4">
         {onOpenDrawer && (
           <button onClick={onOpenDrawer} aria-label={t('nav.chats')}
-            className="flex size-10 items-center justify-center rounded-md text-ink-secondary hover:bg-hover hover:text-ink-primary lg:hidden">
+            className="flex size-10 items-center justify-center rounded-lg text-ink-secondary transition-colors hover:bg-hover hover:text-ink-primary lg:hidden">
             <Menu className="size-5" />
           </button>
         )}
-        <span className="flex size-6 shrink-0 items-center justify-center text-ink-muted">
-          {isDm ? <span className="text-lg font-semibold">@</span> : <Hash className="size-5" />}
-        </span>
+        {isDm ? (
+          <UserAvatar name={name} src={activeDm?.avatar_url} size={26} />
+        ) : (
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-line/10 bg-elevated/60 text-ink-secondary">
+            <Hash className="size-4" />
+          </span>
+        )}
         <h1 className="truncate text-md font-semibold text-ink-primary">{name}</h1>
         {topic && <span className="hidden truncate border-l border-line/10 pl-3 text-sm text-ink-muted md:block">{topic}</span>}
 
@@ -77,7 +83,18 @@ export function ChatView({ onOpenDrawer }: { onOpenDrawer?: () => void }) {
         </div>
       </header>
 
-      <MessageList onReply={setReplyTo} onOpenAttachment={openAttachment} />
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={activeChannelId ?? activeDm?.channel_id ?? 'none'}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <MessageList onReply={setReplyTo} onOpenAttachment={openAttachment} />
+        </motion.div>
+      </AnimatePresence>
       <Composer replyTo={replyTo} onCancelReply={() => setReplyTo(null)} />
     </div>
   )

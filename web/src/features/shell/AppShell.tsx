@@ -1,6 +1,7 @@
 // App shell (spec §3.12): 3-pane desktop, bottom-nav mobile with sheet drawers,
 // connection banner, boot auto-selection, and global keyboard shortcuts.
 import { useEffect, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 import { MessageSquare, Compass, Inbox, Search, User } from 'lucide-react'
 import { useChat } from '../../data/ChatContext'
 import { useAppStore } from '../../store/app'
@@ -93,36 +94,54 @@ export function AppShell() {
   }
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-base">
+    <div className="app-ambient grain relative flex h-full w-full flex-col overflow-hidden bg-base">
       <ConnectionBanner status={connection} />
 
-      <div className="flex min-h-0 flex-1">
-        {/* Desktop rail + sidebar */}
-        <div className="hidden shrink-0 border-r border-line/10 lg:flex"><ServerRail /></div>
-        <div className="hidden w-60 shrink-0 border-r border-line/10 lg:flex"><ChannelSidebar /></div>
+      <div className="relative flex min-h-0 flex-1 lg:gap-2 lg:p-2">
+        {/* Desktop rail + sidebar, floating as rounded panes */}
+        <div className="pane hidden shrink-0 overflow-hidden bg-surface lg:flex lg:rounded-2xl">
+          <ServerRail />
+        </div>
+        <div className="pane hidden w-60 shrink-0 overflow-hidden bg-surface lg:flex lg:rounded-2xl">
+          <ChannelSidebar />
+        </div>
 
         {/* Chat */}
-        <main className="flex min-w-0 flex-1 flex-col">
+        <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-surface lg:pane lg:rounded-2xl">
           <ChatView onOpenDrawer={openDrawer} />
         </main>
 
         {/* Desktop member panel */}
         {isWide && memberPanelOpen && activeGuild && (
-          <div className="hidden w-60 shrink-0 border-l border-line/10 xl:flex"><MemberPanel /></div>
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+            className="pane hidden w-60 shrink-0 overflow-hidden bg-surface xl:block xl:rounded-2xl"
+          >
+            <MemberPanel />
+          </motion.div>
         )}
       </div>
 
       {/* Mobile bottom nav */}
-      <nav aria-label={t('nav.chats')} className="flex h-16 shrink-0 items-stretch justify-around border-t border-line/10 bg-surface lg:hidden">
+      <nav aria-label={t('nav.chats')} className="relative flex h-16 shrink-0 items-stretch justify-around border-t border-line/10 bg-surface/80 backdrop-blur-xl lg:hidden">
         {tabs.map(({ id, label, icon: Icon }) => (
           <button key={id} onClick={() => onTab(id)}
-            className={cn(
-              'flex min-w-[64px] flex-1 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors',
-              tab === id ? 'text-brand' : 'text-ink-muted hover:text-ink-primary',
-            )}
+            className="relative flex min-w-[64px] flex-1 flex-col items-center justify-center gap-0.5 text-[0.6875rem] font-medium"
             aria-current={tab === id ? 'page' : undefined}>
-            <Icon className="size-5" />
-            <span>{label}</span>
+            {tab === id && (
+              <motion.span
+                layoutId="mobile-nav-glow"
+                transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                className="absolute inset-x-3 top-1.5 h-8 rounded-full bg-brand/12"
+              />
+            )}
+            <Icon className={cn(
+              'relative size-5 transition-all duration-200',
+              tab === id ? '-translate-y-px text-brand' : 'text-ink-muted',
+            )} />
+            <span className={cn('relative transition-colors duration-200', tab === id ? 'text-brand' : 'text-ink-muted')}>{label}</span>
           </button>
         ))}
       </nav>

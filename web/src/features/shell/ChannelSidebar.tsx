@@ -1,6 +1,7 @@
 // Channel sidebar (spec §3.4). With no active server it shows the DM list; with a
 // server it shows collapsible categories, unread cues, and a persistent user panel.
-import { useState } from 'react'
+import { useId, useState } from 'react'
+import { motion } from 'framer-motion'
 import {
   ChevronDown, Hash, Headphones, Mic, MicOff, Plus, Settings, UserPlus,
   LogOut, Shield, Bell, Volume2,
@@ -11,7 +12,7 @@ import { useSession } from '../../store/session'
 import { DmList } from '../dm/DmList'
 import { UserAvatar } from '../../components/ui/avatar'
 import { Badge, Button, Input, Label } from '../../components/ui/base'
-import { Collapsible, CollapsibleTrigger, CollapsibleContent, CollapsibleChevron, ScrollArea } from '../../components/ui/controls'
+import { Collapsible, CollapsibleTrigger, CollapsibleContent, ScrollArea } from '../../components/ui/controls'
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuLabel, IconTooltip,
@@ -52,6 +53,7 @@ function ServerSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const [creating, setCreating] = useState(false)
 
   const guild = activeGuild!
+  const activeLayoutId = useId()
   const isOwner = guild.owner_id === userId
   const canManageChannels = (permissions & MANAGE_CHANNELS) !== 0 || (permissions & ADMINISTRATOR) !== 0 || isOwner
   const canModerate = (permissions & KICK_MEMBERS) !== 0 || (permissions & ADMINISTRATOR) !== 0 || isOwner
@@ -105,7 +107,7 @@ function ServerSidebar({ onNavigate }: { onNavigate?: () => void }) {
       {/* Server header + menu */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-line/10 px-4 text-left transition-colors hover:bg-hover">
+          <button className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-line/10 bg-gradient-to-b from-elevated/25 to-transparent px-4 text-left transition-colors hover:bg-hover/60">
             <span className="truncate text-md font-semibold text-ink-primary">{guild.name}</span>
             <ChevronDown className="size-4 shrink-0 text-ink-secondary" />
           </button>
@@ -141,12 +143,12 @@ function ServerSidebar({ onNavigate }: { onNavigate?: () => void }) {
             <>
               {categories.map((cat) => (
                 <CategoryGroup key={cat.id} name={cat.name ?? t('sidebar.uncategorized')} channels={inCategory(cat.id)}
-                  activeChannelId={activeChannelId} unread={unread} onPick={pick} />
+                  activeChannelId={activeChannelId} unread={unread} onPick={pick} activeLayoutId={activeLayoutId} />
               ))}
               <CategoryGroup name={t('sidebar.channels')} channels={looseText}
-                activeChannelId={activeChannelId} unread={unread} onPick={pick} />
+                activeChannelId={activeChannelId} unread={unread} onPick={pick} activeLayoutId={activeLayoutId} />
               <CategoryGroup name={t('sidebar.voice')} channels={looseVoice} voice
-                activeChannelId={activeChannelId} unread={unread} onPick={pick} />
+                activeChannelId={activeChannelId} unread={unread} onPick={pick} activeLayoutId={activeLayoutId} />
             </>
           )}
           {canManageChannels && (
@@ -159,12 +161,12 @@ function ServerSidebar({ onNavigate }: { onNavigate?: () => void }) {
       </ScrollArea>
 
       {/* Persistent user panel */}
-      <div className="flex h-14 shrink-0 items-center gap-1 border-t border-line/10 bg-base/40 px-2">
-        <button onClick={() => openSettings('account')} className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md p-1 hover:bg-hover">
+      <div className="flex h-14 shrink-0 items-center gap-1 border-t border-line/10 bg-gradient-to-t from-base/70 to-transparent px-2">
+        <button onClick={() => openSettings('account')} className="group flex min-w-0 flex-1 items-center gap-1.5 rounded-md p-1 transition-colors hover:bg-hover">
           <UserAvatar name={displayName(profile)} src={profile?.avatar_url} size={28} presence="online" />
           <span className="min-w-0 text-left">
             <span className="block truncate text-sm font-semibold text-ink-primary">{displayName(profile)}</span>
-            <span className="block truncate text-xs text-ink-muted">@{profile?.username ?? 'you'}</span>
+            <span className="block truncate text-xs text-ink-muted transition-colors group-hover:text-ink-secondary">@{profile?.username ?? 'you'}</span>
           </span>
         </button>
         <IconTooltip label={t('sidebar.mic')} side="top">
@@ -213,22 +215,23 @@ function ServerSidebar({ onNavigate }: { onNavigate?: () => void }) {
   )
 }
 
-function CategoryGroup({ name, channels, activeChannelId, unread, onPick, voice = false }: {
+function CategoryGroup({ name, channels, activeChannelId, unread, onPick, voice = false, activeLayoutId }: {
   name: string
   channels: Channel[]
   activeChannelId: string | null
   unread: Record<string, { unread: number; mentions: number }>
   onPick: (id: string) => void
   voice?: boolean
+  activeLayoutId: string
 }) {
   const [open, setOpen] = useState(true)
   if (channels.length === 0) return null
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="group flex w-full items-center gap-1 rounded-md px-1.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-ink-muted hover:text-ink-primary">
-        <CollapsibleChevron open={open} />
+      <CollapsibleTrigger className="group flex w-full items-center gap-1 rounded-md px-1.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-ink-muted transition-colors hover:text-ink-primary">
+        <ChevronDown className={cn('size-3.5 transition-transform duration-200', !open && '-rotate-90')} />
         <span className="truncate">{name}</span>
-        <Plus className="ml-auto size-3.5 opacity-0 group-hover:opacity-100" />
+        <Plus className="ml-auto size-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
       </CollapsibleTrigger>
       <CollapsibleContent className="flex flex-col gap-0.5">
         {channels.map((c) => {
@@ -239,16 +242,25 @@ function CategoryGroup({ name, channels, activeChannelId, unread, onPick, voice 
             <button key={c.id} onClick={() => !voice && onPick(c.id)} disabled={voice}
               aria-current={active ? 'page' : undefined}
               className={cn(
-                'group flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors duration-150',
+                'group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors duration-150',
                 voice ? 'cursor-default opacity-70' : 'hover:bg-hover',
-                active && 'bg-active',
               )}>
-              {voice ? <Volume2 className="size-[18px] shrink-0 text-ink-muted" /> : <Hash className="size-[18px] shrink-0 text-ink-muted" />}
-              <span className={cn('min-w-0 flex-1 truncate text-sm', hasUnread && !active ? 'font-semibold text-ink-primary' : 'text-ink-secondary', active && 'text-ink-primary')}>
+              {active && (
+                <motion.span
+                  layoutId={activeLayoutId}
+                  transition={{ type: 'spring', stiffness: 480, damping: 40 }}
+                  className="absolute inset-0 rounded-md bg-gradient-to-r from-brand/15 via-brand/8 to-transparent shadow-[inset_0_0_0_1px_rgb(var(--brand)/0.12)]"
+                />
+              )}
+              {active && <span aria-hidden className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r-full bg-brand shadow-[0_0_8px_rgb(var(--brand)/0.8)]" />}
+              {voice
+                ? <Volume2 className={cn('relative size-[18px] shrink-0', active ? 'text-brand' : 'text-ink-muted')} />
+                : <Hash className={cn('relative size-[18px] shrink-0', active ? 'text-brand' : 'text-ink-muted')} />}
+              <span className={cn('relative min-w-0 flex-1 truncate text-sm', hasUnread && !active ? 'font-semibold text-ink-primary' : 'text-ink-secondary', active && 'font-medium text-ink-primary')}>
                 {c.name ?? t('common.notFound')}
               </span>
-              {!active && state?.mentions ? <Badge variant="accent" size="sm">{state.mentions}</Badge>
-                : hasUnread && !active ? <span className="size-2 rounded-full bg-ink-primary" /> : null}
+              {!active && state?.mentions ? <Badge variant="accent" size="sm" className="relative animate-pop-in">{state.mentions}</Badge>
+                : hasUnread && !active ? <span className="relative size-2 animate-pop-in rounded-full bg-ink-primary shadow-[0_0_8px_rgb(var(--text-primary)/0.5)]" /> : null}
             </button>
           )
         })}

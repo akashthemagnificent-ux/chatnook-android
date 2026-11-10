@@ -83,10 +83,10 @@ export function MessageList({ onReply, onOpenAttachment }: Props) {
     const day = dayDivider(m.created_at)
     if (day !== lastDay) {
       rows.push(
-        <div key={`day-${m.id}`} className="flex items-center gap-3 px-4 py-3">
-          <span className="h-px flex-1 bg-line/10" />
-          <span className="text-xs font-semibold text-ink-muted">{day}</span>
-          <span className="h-px flex-1 bg-line/10" />
+        <div key={`day-${m.id}`} className="flex items-center gap-3 px-4 py-4">
+          <span className="h-px flex-1 bg-gradient-to-r from-transparent to-line/15" />
+          <span className="rounded-full border border-line/8 bg-elevated/60 px-2.5 py-1 text-xs font-medium text-ink-muted">{day}</span>
+          <span className="h-px flex-1 bg-gradient-to-l from-transparent to-line/15" />
         </div>,
       )
       lastDay = day
@@ -132,22 +132,24 @@ export function MessageList({ onReply, onOpenAttachment }: Props) {
           <div className={cn('flex flex-col pb-2', density === 'compact' ? 'pt-1' : 'pt-3')}>{rows}</div>
         )}
         {typing.length > 0 && (
-          <div className="flex items-center gap-2 px-4 pb-2 text-xs text-ink-muted">
-            <LoaderDots />
-            <span>{typing.length === 1 ? t('chat.typing', { name: typing[0] }) : t('chat.typingMany', { n: typing.length })}</span>
+          <div className="flex animate-fade-up items-center gap-2 px-4 pb-2 text-xs text-ink-muted">
+            <span className="inline-flex items-center gap-2 rounded-full border border-line/10 bg-elevated/70 px-3 py-1.5 backdrop-blur">
+              <LoaderDots className="text-brand" />
+              <span>{typing.length === 1 ? t('chat.typing', { name: typing[0] }) : t('chat.typingMany', { n: typing.length })}</span>
+            </span>
           </div>
         )}
       </div>
 
       {!atBottom && !showSkeleton && (
         <button onClick={() => { atBottomRef.current = true; setAtBottom(true); scrollToBottom() }}
-          className="absolute bottom-4 right-5 z-10 inline-flex items-center gap-1.5 rounded-full border border-line/15 bg-elevated px-3.5 py-2 text-sm font-medium text-ink-primary shadow-pop hover:bg-hover">
-          <ArrowDown className="size-4" /> {t('chat.jumpToPresent')}
+          className="absolute bottom-4 right-5 z-10 inline-flex animate-fade-up items-center gap-1.5 rounded-full border border-brand/25 bg-elevated/90 px-3.5 py-2 text-sm font-medium text-ink-primary shadow-pop backdrop-blur-xl transition-transform duration-150 hover:-translate-y-0.5">
+          <ArrowDown className="size-4 text-brand" /> {t('chat.jumpToPresent')}
         </button>
       )}
       {loadingOlder && (
-        <div className="pointer-events-none absolute left-1/2 top-2 -translate-x-1/2 rounded-full bg-elevated px-3 py-1.5 text-xs text-ink-secondary shadow-soft">
-          <Loader2 className="mr-1 inline size-3 animate-spin" /> {t('common.loading')}
+        <div className="pointer-events-none absolute left-1/2 top-2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-line/10 bg-elevated/90 px-3 py-1.5 text-xs text-ink-secondary shadow-soft backdrop-blur">
+          <Loader2 className="size-3 animate-spin text-brand" /> {t('common.loading')}
         </div>
       )}
     </div>

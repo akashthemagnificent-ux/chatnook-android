@@ -42,10 +42,17 @@ function renderInline(text: string, keyPrefix: string, mentionName: string, isMi
       return <CodeBlock key={key} code={part.slice(3, -3).replace(/^\n|\n$/g, '')} />
     }
     if (part.startsWith('`') && part.endsWith('`')) {
-      return <code key={key} className="rounded-sm bg-base/60 px-1 py-0.5 font-mono text-[0.8125rem] text-ink-primary">{part.slice(1, -1)}</code>
+      return (
+        <code key={key} className={cn(
+          'rounded-sm px-1 py-0.5 font-mono text-[0.8125rem]',
+          isMine ? 'bg-black/15 text-ink-accent' : 'bg-base/60 text-ink-primary',
+        )}>
+          {part.slice(1, -1)}
+        </code>
+      )
     }
     if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={key} className="font-semibold text-ink-primary">{part.slice(2, -2)}</strong>
+      return <strong key={key} className={cn('font-semibold', isMine ? 'text-ink-accent' : 'text-ink-primary')}>{part.slice(2, -2)}</strong>
     }
     if ((part.startsWith('*') && part.endsWith('*')) || (part.startsWith('_') && part.endsWith('_'))) {
       return <em key={key}>{part.slice(1, -1)}</em>
@@ -53,7 +60,10 @@ function renderInline(text: string, keyPrefix: string, mentionName: string, isMi
     if (part.startsWith('http://') || part.startsWith('https://')) {
       return (
         <a key={key} href={part} target="_blank" rel="noopener noreferrer"
-          className="text-info underline decoration-info/40 underline-offset-2 hover:decoration-info break-all">
+          className={cn(
+            'underline underline-offset-2 break-all',
+            isMine ? 'text-ink-accent decoration-ink-accent/50' : 'text-info decoration-info/40 hover:decoration-info',
+          )}>
           {part}
         </a>
       )
@@ -63,7 +73,7 @@ function renderInline(text: string, keyPrefix: string, mentionName: string, isMi
         part.slice(1).toLowerCase() === mentionName.toLowerCase()
       if (isMention) {
         return (
-          <span key={key} className={cn('rounded-sm px-1 font-medium', isMine ? 'bg-ink-accent/20' : 'bg-brand/20 text-brand')}>
+          <span key={key} className={cn('rounded-sm px-1 font-medium', isMine ? 'bg-black/15 text-ink-accent' : 'bg-brand/20 text-brand')}>
             {part}
           </span>
         )
@@ -87,7 +97,12 @@ export function MessageContent({
   if (!content) return null
   const emojiOnly = isEmojiOnly(content)
   return (
-    <div className={cn('break-words text-base leading-relaxed text-ink-primary', emojiOnly && 'text-4xl leading-tight', className)}>
+    <div className={cn(
+      'break-words text-[0.9375rem] leading-[1.55]',
+      isMine ? 'text-ink-accent' : 'text-ink-primary',
+      emojiOnly && 'text-4xl leading-tight',
+      className,
+    )}>
       {renderBlocks(content, mentionName, isMine)}
     </div>
   )

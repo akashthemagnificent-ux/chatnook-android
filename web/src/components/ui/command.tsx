@@ -5,6 +5,7 @@ import { Search } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { t } from '../../lib/i18n'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from './overlay'
+import { BorderBeam } from '../fx/surfaces'
 import { Kbd } from './base'
 
 export const Command = React.forwardRef<
@@ -13,7 +14,7 @@ export const Command = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <CommandPrimitive
     ref={ref}
-    className={cn('flex h-full w-full flex-col overflow-hidden rounded-lg bg-elevated text-ink-primary', className)}
+    className={cn('flex h-full w-full flex-col overflow-hidden rounded-2xl bg-transparent text-ink-primary', className)}
     {...props}
   />
 ))
@@ -24,11 +25,11 @@ export const CommandInput = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
 >(({ className, ...props }, ref) => (
   <div className="flex items-center gap-2.5 border-b border-line/10 px-4">
-    <Search className="size-4 shrink-0 text-ink-muted" />
+    <Search className="size-4 shrink-0 text-brand" />
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
-        'flex h-12 w-full rounded-md bg-transparent py-3 text-base outline-none placeholder:text-ink-muted disabled:opacity-50',
+        'flex h-14 w-full rounded-md bg-transparent py-3 text-md outline-none placeholder:text-ink-muted disabled:opacity-50',
         className,
       )}
       {...props}
@@ -42,7 +43,7 @@ export const CommandList = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.List>
 >(({ className, ...props }, ref) => (
-  <CommandPrimitive.List ref={ref} className={cn('max-h-[360px] overflow-y-auto overflow-x-hidden p-2 scrollbar-thin', className)} {...props} />
+  <CommandPrimitive.List ref={ref} className={cn('mask-fade-b max-h-[min(420px,60vh)] overflow-y-auto overflow-x-hidden p-2 pb-7 scrollbar-thin', className)} {...props} />
 ))
 CommandList.displayName = 'CommandList'
 
@@ -76,8 +77,8 @@ export const CommandItem = React.forwardRef<
   <CommandPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2.5 py-2.5 text-sm outline-none',
-      'data-[selected=true]:bg-hover data-[selected=true]:text-ink-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50',
+      'relative flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-sm outline-none transition-colors',
+      'data-[selected=true]:bg-brand/15 data-[selected=true]:text-ink-primary data-[selected=true]:shadow-[inset_2px_0_0_rgb(var(--brand))] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50',
       className,
     )}
     {...props}
@@ -98,7 +99,8 @@ export function CommandDialog({ open, onOpenChange, label, children }: {
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent hideClose className="max-w-xl p-0 top-[18%] translate-y-0">
+      <DialogContent hideClose className="top-[18%] max-w-xl translate-y-0 overflow-hidden rounded-2xl border-line/10 p-0 shadow-pop">
+        <BorderBeam duration={9} />
         <DialogTitle className="sr-only">{label}</DialogTitle>
         <DialogDescription className="sr-only">{t('a11y.searchDialog')}</DialogDescription>
         <Command loop>{children}</Command>

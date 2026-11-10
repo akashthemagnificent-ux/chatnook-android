@@ -30,7 +30,7 @@ export function Lightbox({ items, index, onIndexChange, onClose }: {
   const isImage = item.content_type?.startsWith('image/')
   return (
     <div className="fixed inset-0 z-[70] flex flex-col bg-black/90 backdrop-blur-md animate-fade-in" role="dialog" aria-modal="true" aria-label={t('lightbox.viewer')}>
-      <div className="flex h-14 shrink-0 items-center justify-between gap-2 px-4 text-ink-primary">
+      <div className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-black/40 px-4 text-ink-primary backdrop-blur-xl">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{item.filename ?? t('message.file')}</p>
           <p className="text-xs text-white/60">{fileSize(item.size_bytes)} · {t('lightbox.position', { n: index + 1, total: items.length })}</p>
@@ -44,7 +44,7 @@ export function Lightbox({ items, index, onIndexChange, onClose }: {
             </>
           )}
           <a href={item.url} download={item.filename ?? undefined} target="_blank" rel="noopener noreferrer"
-            className="inline-flex size-9 items-center justify-center rounded-sm text-white/80 hover:bg-white/10" aria-label={t('lightbox.download')}>
+            className="inline-flex size-9 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10" aria-label={t('lightbox.download')}>
             <Download className="size-4" />
           </a>
           <Button variant="ghost" size="icon-sm" aria-label={t('a11y.close')} onClick={onClose}><X /></Button>
@@ -52,21 +52,21 @@ export function Lightbox({ items, index, onIndexChange, onClose }: {
       </div>
       <div className="relative flex flex-1 items-center justify-center overflow-hidden p-4">
         {isImage ? (
-          <img src={item.url} alt={item.filename ?? ''} className="max-h-full max-w-full object-contain rounded-md transition-transform duration-150" style={{ transform: `scale(${zoom})` }} />
+          <img src={item.url} alt={item.filename ?? ''} className="max-h-full max-w-full animate-scale-in rounded-lg object-contain shadow-[0_30px_90px_-30px_rgba(0,0,0,0.9)] transition-transform duration-150" style={{ transform: `scale(${zoom})` }} />
         ) : (
           <div className="flex flex-col items-center gap-4 text-center text-white">
             <p className="text-lg">{item.filename}</p>
-            <a href={item.url} target="_blank" rel="noopener noreferrer" className="rounded-md bg-brand px-5 py-2.5 font-medium text-ink-accent">{t('lightbox.openFile')}</a>
+            <a href={item.url} target="_blank" rel="noopener noreferrer" className="rounded-full bg-brand px-5 py-2.5 font-medium text-ink-accent shadow-glow">{t('lightbox.openFile')}</a>
           </div>
         )}
         {items.length > 1 && (
           <>
             <button onClick={() => onIndexChange(index - 1)} disabled={index === 0} aria-label={t('lightbox.previous')}
-              className="absolute left-3 flex size-10 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 disabled:opacity-30">
+              className="absolute left-3 flex size-11 items-center justify-center rounded-full border border-white/10 bg-black/50 text-white backdrop-blur transition-all hover:scale-105 hover:bg-black/70 disabled:opacity-30">
               <ChevronLeft className="size-5" />
             </button>
             <button onClick={() => onIndexChange(index + 1)} disabled={index === items.length - 1} aria-label={t('lightbox.next')}
-              className="absolute right-3 flex size-10 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 disabled:opacity-30">
+              className="absolute right-3 flex size-11 items-center justify-center rounded-full border border-white/10 bg-black/50 text-white backdrop-blur transition-all hover:scale-105 hover:bg-black/70 disabled:opacity-30">
               <ChevronRight className="size-5" />
             </button>
           </>

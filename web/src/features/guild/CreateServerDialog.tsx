@@ -47,12 +47,19 @@ export function CreateServerDialog() {
   return (
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-w-lg">
-        <DialogTitle>{t('guild.createTitle')}</DialogTitle>
-        <DialogDescription>{t('guild.createSubtitle')}</DialogDescription>
+        <div className="flex items-start gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-brand/25 bg-brand/10 text-brand shadow-glow">
+            <Sparkles className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <DialogTitle>{t('guild.createTitle')}</DialogTitle>
+            <DialogDescription>{t('guild.createSubtitle')}</DialogDescription>
+          </div>
+        </div>
 
         {done ? (
           <div className="mt-5 space-y-4">
-            <div className="flex items-center gap-2 rounded-md border border-success/25 bg-success/10 px-3 py-2.5 text-sm text-ink-primary">
+            <div className="flex animate-fade-up items-center gap-2 rounded-xl border border-success/25 bg-success/10 px-3 py-2.5 text-sm text-ink-primary">
               <Check className="size-4 text-success" />
               {t('toast.serverCreated')}
             </div>

@@ -1,6 +1,7 @@
 // User settings (spec §3.9/§3.22): two-column dialog, compact header, live preview.
 // Account and appearance write through to the existing profile row.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 import {
   Bell, Check, LogOut, Moon, Palette, Shield, Sun, UserRound,
 } from 'lucide-react'
@@ -16,6 +17,7 @@ import { toast } from '../../components/ui/toast'
 import { UserAvatar } from '../../components/ui/avatar'
 import { Button, Input, Label, Separator } from '../../components/ui/base'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from '../../components/ui/controls'
+import { BorderBeam, SpotlightCard } from '../../components/fx/surfaces'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../../components/ui/overlay'
 
 const TABS = [
@@ -38,6 +40,7 @@ export function SettingsDialog() {
   const tab = useAppStore((s) => s.settingsTab)
   const setTab = useAppStore((s) => s.setSettingsTab)
   const open = overlay === 'settings'
+  const tabLayoutId = useId()
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) setOverlay(null) }}>
@@ -54,11 +57,18 @@ export function SettingsDialog() {
               <button key={id} onClick={() => setTab(id)}
                 aria-current={tab === id ? 'page' : undefined}
                 className={cn(
-                  'flex min-h-10 shrink-0 items-center gap-2.5 rounded-md px-3 text-sm font-medium transition-colors',
-                  tab === id ? 'bg-elevated text-ink-primary shadow-sm' : 'text-ink-secondary hover:bg-hover hover:text-ink-primary',
+                  'relative flex min-h-10 shrink-0 items-center gap-2.5 rounded-lg px-3 text-sm font-medium transition-colors',
+                  tab === id ? 'text-ink-primary' : 'text-ink-secondary hover:bg-hover hover:text-ink-primary',
                 )}>
-                <Icon className="size-4" />
-                {label}
+                {tab === id && (
+                  <motion.span
+                    layoutId={`settings-tab-${tabLayoutId}`}
+                    transition={{ type: 'spring', stiffness: 480, damping: 40 }}
+                    className="absolute inset-0 rounded-lg bg-elevated shadow-[inset_0_1px_0_rgb(var(--line)/0.06)]"
+                  />
+                )}
+                <Icon className="relative size-4" />
+                <span className="relative">{label}</span>
               </button>
             ))}
             <div className="sm:mt-auto">
@@ -67,10 +77,12 @@ export function SettingsDialog() {
           </nav>
 
           <div className="min-w-0 flex-1 overflow-y-auto scrollbar-thin p-5 sm:p-7">
-            {tab === 'account' && <AccountTab />}
-            {tab === 'appearance' && <AppearanceTab />}
-            {tab === 'privacy' && <PrivacyTab />}
-            {tab === 'notifications' && <NotificationsTab />}
+            <div key={tab} className="animate-fade-up">
+              {tab === 'account' && <AccountTab />}
+              {tab === 'appearance' && <AppearanceTab />}
+              {tab === 'privacy' && <PrivacyTab />}
+              {tab === 'notifications' && <NotificationsTab />}
+            </div>
           </div>
         </div>
       </DialogContent>
@@ -248,7 +260,10 @@ function AppearanceTab() {
                 'flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors',
                 accent === a.id ? 'border-brand/60 bg-brand/10' : 'border-line/12 hover:bg-hover',
               )}>
-              <span data-accent={a.id} className="size-3.5 rounded-full bg-brand ring-1 ring-inset ring-black/20" />
+              <span data-accent={a.id} className={cn(
+                'size-4 rounded-full bg-brand ring-1 ring-inset ring-black/20 transition-shadow',
+                accent === a.id && 'shadow-[0_0_0_3px_rgb(var(--brand)/0.2)]',
+              )} />
               {a.label}
               {accent === a.id && <Check className="size-3.5 text-brand" />}
             </button>
@@ -261,25 +276,30 @@ function AppearanceTab() {
 
       <div className="space-y-2">
         <Label>{t('appearance.preview')}</Label>
-        <div className="rounded-lg border border-line/12 bg-surface p-4">
-          <div className="flex items-start gap-3">
-            <span className="mt-1 size-8 shrink-0 rounded-full bg-brand" aria-hidden />
-            <div>
-              <p className="text-sm font-semibold">
-                {displayName(profile)}
-                <span className="ml-2 text-xs font-normal text-ink-muted">12:04</span>
-              </p>
-              <p className={cn('text-sm text-ink-secondary', density === 'compact' ? 'mt-0.5' : 'mt-1')}>
-                {t('appearance.previewBody')}
-              </p>
+        <SpotlightCard className="rounded-xl">
+          <BorderBeam duration={8} />
+          <div className="rounded-xl border border-line/12 bg-surface/80 p-4 backdrop-blur">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-sheen text-xs font-bold text-ink-accent shadow-glow" aria-hidden>
+                {displayName(profile).slice(0, 1).toUpperCase()}
+              </span>
+              <div>
+                <p className="text-sm font-semibold">
+                  {displayName(profile)}
+                  <span className="ml-2 text-xs font-normal tabular-nums text-ink-muted">12:04</span>
+                </p>
+                <p className={cn('text-sm text-ink-secondary', density === 'compact' ? 'mt-0.5' : 'mt-1')}>
+                  {t('appearance.previewBody')}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex justify-end">
+              <span className="bubble-own rounded-2xl rounded-tr-md border border-brand/25 px-3 py-1.5 text-sm font-medium text-ink-primary">
+                {t('appearance.previewSend')}
+              </span>
             </div>
           </div>
-          <div className="mt-3 flex justify-end">
-            <span className="rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-ink-accent">
-              {t('appearance.previewSend')}
-            </span>
-          </div>
-        </div>
+        </SpotlightCard>
       </div>
     </section>
   )

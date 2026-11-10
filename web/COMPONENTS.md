@@ -30,6 +30,32 @@ not a beauty contest between identical Radix wrappers, decides the source. React
 ideas are reproduced locally with CSS (`fade-up`, `scale-in`) so the bundle stays
 dependency-light and honors `prefers-reduced-motion`.
 
+## Effect & motion primitives (`src/components/fx/`)
+
+The v2 visual layer is built from library *patterns* vendored as local components —
+source copied and re-tokenised, no runtime dependency added (framer-motion was
+already installed). Each one is used by more than one screen.
+
+| Component | Library source (per §2.3 mapping) | Implementation | Used by |
+|---|---|---|---|
+| `SpotlightCard` | aceternity `card-spotlight` | `fx/surfaces.tsx` — pointer-tracked radial highlight via `useMotionTemplate` | empty/error states, settings preview, auth card |
+| `BorderBeam` | magicui `border-beam` | `fx/surfaces.tsx` — conic gradient + `mask: xor`, animated offset | auth card, command palette, onboarding, settings preview, 404 |
+| `BentoGrid` / `BentoCard` | magicui `bento-grid` | `fx/surfaces.tsx` — 3-up grid, selectable cards with accent ring + glow | onboarding tour |
+| `ShimmerButton` | magicui `shimmer-button` | `fx/buttons.tsx` — gradient fill, travelling sheen, spring press, neutral disabled state | composer send, auth CTA, onboarding finish |
+| `Aurora` / `GridBackdrop` | aceternity `aurora-background` + grid | `fx/backgrounds.tsx` — drifting blobs, vignette, masked grid | splash, auth, route states |
+| `GradientText` | reactbits text effects | `fx/text.tsx` — animated background-clip sweep | splash wordmark |
+| `Reveal` / `Stagger` / `StaggerItem` | framer-motion patterns | `fx/motion.tsx` — `useReducedMotion`-aware entrance wrappers | every screen's content block |
+
+Motion tokens live in `tailwind.config.ts` (`fade-up`, `scale-in`, `message-in`,
+`pop-in`, `aurora`, `border-spin`, `shine`, `float`, `pulse-ring`, `glow`) and the
+keyframes animate the `translate`/`scale` properties rather than `transform`, so
+Radix's `-translate-x-1/2` dialog centring survives an active animation.
+
+Layout utilities added in `globals.css`: `.app-ambient` (fixed radial wash behind
+the panes), `.grain` (SVG turbulence), `.pane` (hairline + inset highlight + deep
+shadow, with a firmer light-theme variant), `.glass`, `.bubble-own`, `.text-gradient`,
+`.hairline`, `.mask-fade-y`, `.mask-fade-b`, `.no-scrollbar`.
+
 ## Shipped primitives → source
 
 | Component | Source (per §2.3 mapping) | Implementation |
@@ -51,8 +77,9 @@ dependency-light and honors `prefers-reduced-motion`.
 | `Command` (⌘K palette) | shadcn `command` (cmdk) | `ui/command.tsx` (cmdk) |
 | Toast / notifications | `sonner` | `ui/toast.tsx` (token-styled Toaster) |
 | `LoaderDots` (typing/sending) | indie-starter loader-dots | `components/LoaderDots.tsx` (CSS dot-pulse) |
-| `AuroraBackground` (login) | aceternity / magicui aurora | `components/AuroraBackground.tsx` (CSS, lazy-loaded, subtle) |
-| Empty-state card | magicui bento / reactbits card + lucide | `components/States.tsx` |
+| `AuroraBackground` (login) | aceternity / magicui aurora | `components/AuroraBackground.tsx` — thin wrapper over `fx/Aurora` plus a breathing top glow |
+| Empty / error state | magicui bento / reactbits card + lucide | `components/States.tsx` — `SpotlightCard` + `GridBackdrop` + `Reveal` |
+| `BrandMark` / `Wordmark` | original mark, no library source | `components/Brand.tsx` — gradient tile + SVG glyph + spark, no Discord likeness |
 
 ## Custom components (no library match, built to §2.2 bar, all token-driven)
 

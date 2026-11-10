@@ -1,10 +1,13 @@
 // Login / sign-up / password reset (spec §3.1). Centered card on a subtle aurora
 // backdrop, react-hook-form validation, inline errors, and clear loading states.
 import { lazy, Suspense, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useForm } from 'react-hook-form'
 import { ArrowLeft, Eye, EyeOff, Lock, Mail, Sparkles } from 'lucide-react'
 import { Wordmark } from '../../components/Brand'
 import { LoaderDots } from '../../components/LoaderDots'
+import { ShimmerButton } from '../../components/fx/buttons'
+import { BorderBeam, SpotlightCard } from '../../components/fx/surfaces'
 import {
   Button, Input, Label, Separator, Card, CardContent,
 } from '../../components/ui/base'
@@ -87,25 +90,37 @@ export function AuthScreen() {
   const busyLabel = mode === 'sign-up' ? t('auth.creating') : t('auth.signingIn')
 
   return (
-    <div className="relative flex min-h-full w-full items-center justify-center overflow-y-auto bg-base px-4 py-10">
+    <div className="grain relative flex min-h-full w-full items-center justify-center overflow-y-auto bg-base px-4 py-10">
       <Suspense fallback={null}><AuroraBackground /></Suspense>
 
-      <div className="relative z-10 w-full max-w-[400px] animate-fade-up">
+      <div className="relative z-10 w-full max-w-[420px] animate-fade-up">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <Wordmark />
+          <Wordmark shine />
           <p className="text-sm text-ink-secondary">{t('app.tagline')}</p>
         </div>
 
-        <Card className="shadow-pop">
-          <CardContent className="p-6">
+        <SpotlightCard className="rounded-2xl">
+          <BorderBeam duration={9} />
+          <Card className="relative rounded-2xl border-line/10 bg-surface/85 shadow-pop backdrop-blur-xl">
+            <CardContent className="p-6 sm:p-7">
             {mode === 'reset' && (
               <button onClick={() => switchMode('sign-in')}
-                className="mb-4 inline-flex items-center gap-1.5 text-sm text-ink-secondary hover:text-ink-primary">
+                className="mb-4 inline-flex items-center gap-1.5 text-sm text-ink-secondary transition-colors hover:text-ink-primary">
                 <ArrowLeft className="size-4" /> {t('common.back')}
               </button>
             )}
-            <h1 className="text-title font-bold tracking-tight text-ink-primary">{title}</h1>
-            <p className="mt-1 text-sm text-ink-secondary">{subtitle}</p>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={mode}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <h1 className="text-title font-bold tracking-tight text-ink-primary">{title}</h1>
+                <p className="mt-1 text-sm text-ink-secondary">{subtitle}</p>
+              </motion.div>
+            </AnimatePresence>
 
             <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4" noValidate>
               <div className="flex flex-col gap-1.5">
@@ -159,9 +174,9 @@ export function AuthScreen() {
                 </>
               )}
 
-              <Button type="submit" variant="primary" size="lg" disabled={submitting} className="mt-1 w-full">
+              <ShimmerButton type="submit" size="lg" full disabled={submitting} className="mt-1">
                 {submitting ? <><LoaderDots /> <span>{busyLabel}</span></> : cta}
-              </Button>
+              </ShimmerButton>
             </form>
 
             {mode === 'sign-in' && (
@@ -183,17 +198,18 @@ export function AuthScreen() {
 
             <div className="mt-6 text-center text-sm text-ink-secondary">
               {mode === 'sign-in' ? (
-                <button className="font-medium text-brand hover:underline" onClick={() => switchMode('sign-up')}>
+                <button className="font-medium text-brand transition-colors hover:text-brand-glow" onClick={() => switchMode('sign-up')}>
                   {t('auth.noAccount')}
                 </button>
               ) : (
-                <button className="font-medium text-brand hover:underline" onClick={() => switchMode('sign-in')}>
+                <button className="font-medium text-brand transition-colors hover:text-brand-glow" onClick={() => switchMode('sign-in')}>
                   {t('auth.haveAccount')}
                 </button>
               )}
             </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </SpotlightCard>
       </div>
     </div>
   )

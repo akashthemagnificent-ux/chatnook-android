@@ -54,8 +54,15 @@ export function JoinServerDialog() {
   return (
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-w-lg">
-        <DialogTitle>{t('guild.joinTitle')}</DialogTitle>
-        <DialogDescription>{t('guild.joinSubtitle')}</DialogDescription>
+        <div className="flex items-start gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-brand/25 bg-brand/10 text-brand shadow-glow">
+            <LogIn className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <DialogTitle>{t('guild.joinTitle')}</DialogTitle>
+            <DialogDescription>{t('guild.joinSubtitle')}</DialogDescription>
+          </div>
+        </div>
         <form className="mt-5 space-y-4" onSubmit={(e) => { e.preventDefault(); void join() }}>
           <div className="space-y-1.5">
             <Label htmlFor="invite-code">{t('guild.inviteCode')}</Label>

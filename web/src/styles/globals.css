@@ -4,6 +4,7 @@
 
 /*
  * ChatNook design tokens (spec §1).
+ * Palette "Nocturne": ink-blue depths, one warm coral signal, paper light theme.
  * Values are RGB triplets so Tailwind can apply opacity: `bg-brand/10`.
  * Only these variables may define color; components never hardcode a hex.
  */
@@ -12,46 +13,48 @@
   .theme-dark {
     color-scheme: dark;
 
-    --bg-base: 11 13 16;
-    --bg-surface: 18 21 26;
-    --bg-elevated: 26 31 38;
-    --bg-hover: 34 40 49;
-    --bg-active: 45 53 64;
+    --bg-base: 8 10 15;
+    --bg-surface: 14 17 24;
+    --bg-elevated: 22 26 36;
+    --bg-hover: 31 37 50;
+    --bg-active: 41 48 64;
 
     --line: 255 255 255;
 
-    --text-primary: 242 244 247;
-    --text-secondary: 163 172 185;
-    --text-muted: 122 132 148;
-    --text-on-accent: 24 13 8;
+    --text-primary: 242 244 249;
+    --text-secondary: 176 184 200;
+    --text-muted: 140 149 168;
+    --text-on-accent: 26 12 6;
 
     --brand: 255 122 69;
-    --brand-strong: 232 93 42;
+    --brand-strong: 235 92 40;
+    --brand-glow: 255 158 112;
 
-    --success: 52 211 153;
-    --warning: 251 191 36;
-    --danger: 248 113 113;
-    --info: 96 165 250;
+    --success: 61 220 151;
+    --warning: 250 190 70;
+    --danger: 251 113 133;
+    --info: 110 168 254;
   }
 
   .theme-light {
     color-scheme: light;
 
-    --bg-base: 247 248 250;
-    --bg-surface: 255 255 255;
+    --bg-base: 241 238 231;
+    --bg-surface: 252 250 246;
     --bg-elevated: 255 255 255;
-    --bg-hover: 241 243 246;
-    --bg-active: 232 236 241;
+    --bg-hover: 240 236 229;
+    --bg-active: 232 226 216;
 
-    --line: 15 23 42;
+    --line: 32 26 20;
 
-    --text-primary: 20 23 28;
-    --text-secondary: 82 91 105;
-    --text-muted: 108 118 132;
-    --text-on-accent: 26 13 6;
+    --text-primary: 28 24 20;
+    --text-secondary: 88 79 70;
+    --text-muted: 116 106 95;
+    --text-on-accent: 255 250 245;
 
-    --brand: 226 88 34;
-    --brand-strong: 194 65 12;
+    --brand: 219 78 26;
+    --brand-strong: 190 60 14;
+    --brand-glow: 255 138 92;
 
     --success: 5 150 105;
     --warning: 180 83 9;
@@ -62,9 +65,9 @@
   /* Accent variants (spec §1.6 single accent, §3.22 live preview). The coral
      default lives in the theme blocks above; these override it for both themes.
      Applied via [data-accent] so the no-flash boot script can set it pre-paint. */
-  [data-accent='violet'] { --brand: 139 92 246; --brand-strong: 124 58 237; --text-on-accent: 255 255 255; }
-  [data-accent='teal']   { --brand: 20 184 166; --brand-strong: 13 148 136; --text-on-accent: 5 38 36; }
-  [data-accent='blue']   { --brand: 59 130 246; --brand-strong: 37 99 235; --text-on-accent: 255 255 255; }
+  [data-accent='violet'] { --brand: 150 108 255; --brand-strong: 124 78 240; --brand-glow: 190 160 255; --text-on-accent: 255 255 255; }
+  [data-accent='teal']   { --brand: 26 199 178; --brand-strong: 13 158 143; --brand-glow: 120 235 220; --text-on-accent: 4 38 34; }
+  [data-accent='blue']   { --brand: 74 144 255; --brand-strong: 42 108 235; --brand-glow: 150 195 255; --text-on-accent: 255 255 255; }
 
   html,
   body,
@@ -78,14 +81,19 @@
     color: rgb(var(--text-primary));
     font-family: 'Inter Variable', Inter, ui-sans-serif, system-ui, sans-serif;
     font-size: 0.875rem;
-    line-height: 1.375rem;
+    line-height: 1.45;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     overscroll-behavior: none;
   }
 
+  h1, h2, h3 {
+    letter-spacing: -0.02em;
+  }
+
   ::selection {
-    background: rgb(var(--brand) / 0.28);
+    background: rgb(var(--brand) / 0.3);
     color: rgb(var(--text-primary));
   }
 
@@ -116,6 +124,99 @@
 }
 
 @layer utilities {
+  /* Fixed ambient wash behind the floating desktop panes. */
+  .app-ambient::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(52rem 34rem at 8% -8%, rgb(var(--brand) / 0.1), transparent 62%),
+      radial-gradient(46rem 30rem at 100% 4%, rgb(var(--info) / 0.07), transparent 60%),
+      radial-gradient(40rem 28rem at 60% 110%, rgb(var(--brand) / 0.05), transparent 60%);
+  }
+
+  /* Fine film grain keeps large flat surfaces from looking like plastic. */
+  .grain::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  }
+
+  /* Desktop pane: hairline border, top highlight, deep soft shadow. */
+  .pane {
+    border: 1px solid rgb(var(--line) / 0.07);
+    box-shadow:
+      inset 0 1px 0 rgb(var(--line) / 0.05),
+      0 30px 70px -42px rgb(0 0 0 / 0.75);
+  }
+
+  /* On paper-white surfaces a 7% edge disappears, so the light theme needs
+     a firmer line and a drop shadow to keep the panes apart. */
+  .theme-light .pane {
+    border-color: rgb(var(--line) / 0.1);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.9),
+      0 18px 44px -32px rgb(var(--line) / 0.5);
+  }
+
+  .glass {
+    background: rgb(var(--bg-surface) / 0.72);
+    backdrop-filter: blur(18px) saturate(1.4);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  }
+
+  /* Own-message bubble: solid accent, dark ink. Reads as "sent" at a glance. */
+  .bubble-own {
+    background-image: linear-gradient(135deg, rgb(var(--brand)), rgb(var(--brand-strong)));
+  }
+
+  .text-gradient {
+    background-image: linear-gradient(
+      100deg,
+      rgb(var(--text-primary)) 0%,
+      rgb(var(--text-primary)) 35%,
+      rgb(var(--brand-glow)) 50%,
+      rgb(var(--text-primary)) 65%,
+      rgb(var(--text-primary)) 100%
+    );
+    background-size: 220% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: gradient-pan 9s linear infinite;
+  }
+
+  /* 1px gradient edge; the host element must already be positioned. */
+  .hairline::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(160deg, rgb(var(--line) / 0.16), rgb(var(--line) / 0.02) 40%, rgb(var(--line) / 0.01));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .mask-fade-y {
+    mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+  }
+
+  /* Bottom-only fade: tells a clipped scroll list it continues. Pair with
+     matching bottom padding so a short list never fades. */
+  .mask-fade-b {
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  }
+
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: rgb(var(--line) / 0.16) transparent;
@@ -142,6 +243,13 @@
     background-clip: padding-box;
   }
 
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   .drag-none {
     -webkit-user-drag: none;
     user-select: none;
@@ -150,4 +258,38 @@
   .text-balance {
     text-wrap: balance;
   }
+}
+
+/* Keyframes live here so utilities in this file can reference them too. */
+@keyframes gradient-pan {
+  from { background-position: 0% center; }
+  to { background-position: -220% center; }
+}
+@keyframes aurora-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(5%, -4%, 0) scale(1.14); }
+}
+@keyframes aurora-drift-alt {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.05); }
+  50% { transform: translate3d(-6%, 5%, 0) scale(0.94); }
+}
+@keyframes border-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes shine {
+  0% { transform: translateX(-140%); }
+  60%, 100% { transform: translateX(240%); }
+}
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgb(var(--brand) / 0.4); }
+  70% { box-shadow: 0 0 0 12px rgb(var(--brand) / 0); }
+  100% { box-shadow: 0 0 0 0 rgb(var(--brand) / 0); }
+}
+@keyframes glow-breathe {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }

@@ -10,8 +10,7 @@ export const Avatar = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AvatarPrimitive.Root
     ref={ref}
-    className={cn('relative flex shrink-0 overflow-hidden rounded-full bg-hover ring-1 ring-line/10', className)}
-    {...props}
+    className={cn('relative flex shrink-0 overflow-hidden rounded-full bg-hover ring-1 ring-line/10', className)}    {...props}
   />
 ))
 Avatar.displayName = 'Avatar'
@@ -30,7 +29,7 @@ export const AvatarFallback = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AvatarPrimitive.Fallback
     ref={ref}
-    className={cn('flex h-full w-full items-center justify-center rounded-full bg-hover text-ink-secondary font-semibold', className)}
+    className={cn('flex h-full w-full items-center justify-center rounded-full bg-[linear-gradient(160deg,rgb(var(--bg-active)),rgb(var(--bg-hover)))] text-ink-primary/90 font-semibold shadow-[inset_0_1px_0_rgb(var(--line)/0.08)]', className)}
     {...props}
   />
 ))
@@ -70,8 +69,9 @@ export function UserAvatar({
       {presence && (
         <span
           className={cn(
-            'absolute bottom-0 right-0 rounded-full border-[2.5px] border-surface',
+            'absolute bottom-0 right-0 rounded-full border-[2.5px] border-surface transition-colors duration-300',
             presenceColor[presence],
+            presence === 'online' && 'shadow-[0_0_10px_rgb(var(--success)/0.65)]',
           )}
           style={{ width: Math.max(10, size * 0.3), height: Math.max(10, size * 0.3) }}
           aria-label={presence}

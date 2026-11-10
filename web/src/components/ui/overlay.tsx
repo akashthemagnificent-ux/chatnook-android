@@ -17,7 +17,7 @@ export const DialogClose = DialogPrimitive.Close
 export const DialogPortal = DialogPrimitive.Portal
 
 const overlaySurface =
-  'fixed z-50 border border-line/12 bg-elevated shadow-pop text-ink-primary ' +
+  'fixed z-50 border border-line/10 bg-elevated/95 shadow-pop text-ink-primary backdrop-blur-xl ' +
   'data-[state=open]:animate-scale-in'
 
 export const DialogOverlay = React.forwardRef<
@@ -26,7 +26,7 @@ export const DialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
-    className={cn('fixed inset-0 z-40 bg-black/60 backdrop-blur-sm data-[state=open]:animate-fade-in', className)}
+    className={cn('fixed inset-0 z-40 bg-black/70 backdrop-blur-md data-[state=open]:animate-fade-in', className)}
     {...props}
   />
 ))
@@ -42,7 +42,7 @@ export const DialogContent = React.forwardRef<
       ref={ref}
       className={cn(
         overlaySurface,
-        'left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg p-6',
+        'hairline left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl p-6',
         className,
       )}
       {...props}
@@ -50,7 +50,7 @@ export const DialogContent = React.forwardRef<
       {children}
       {!hideClose && (
         <DialogPrimitive.Close
-          className="absolute right-4 top-4 rounded-sm p-1 text-ink-secondary hover:bg-hover hover:text-ink-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          className="absolute right-4 top-4 rounded-full p-1.5 text-ink-secondary transition-colors hover:bg-hover hover:text-ink-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
           aria-label={t('a11y.close')}
         >
           <X className="size-4" />
@@ -79,9 +79,9 @@ DialogDescription.displayName = 'DialogDescription'
 
 // ---------------------------------------------------------------- sheet (mobile drawers)
 const sheetSides = {
-  left: 'inset-y-0 left-0 h-full w-[86%] max-w-[320px] border-r rounded-none data-[state=open]:animate-slide-from-left',
-  right: 'inset-y-0 right-0 h-full w-[86%] max-w-[360px] border-l rounded-none data-[state=open]:animate-slide-from-right',
-  bottom: 'inset-x-0 bottom-0 w-full max-h-[85vh] rounded-t-xl border-t data-[state=open]:animate-slide-from-bottom',
+  left: 'inset-y-0 left-0 h-full w-[86%] max-w-[320px] border-r rounded-r-2xl data-[state=open]:animate-slide-from-left',
+  right: 'inset-y-0 right-0 h-full w-[86%] max-w-[360px] border-l rounded-l-2xl data-[state=open]:animate-slide-from-right',
+  bottom: 'inset-x-0 bottom-0 w-full max-h-[85vh] rounded-t-2xl border-t data-[state=open]:animate-slide-from-bottom',
 } as const
 
 export const Sheet = DialogPrimitive.Root
@@ -122,7 +122,7 @@ export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger
 export const DropdownMenuGroup = DropdownMenuPrimitive.Group
 
 const menuContentCls =
-  'z-50 min-w-[200px] overflow-hidden rounded-lg border border-line/12 bg-elevated p-1.5 shadow-pop text-ink-primary ' +
+  'z-50 min-w-[200px] overflow-hidden rounded-xl border border-line/10 bg-elevated/95 p-1.5 shadow-pop backdrop-blur-xl text-ink-primary ' +
   'data-[state=open]:animate-scale-in'
 
 export const DropdownMenuContent = React.forwardRef<
@@ -196,12 +196,15 @@ export const TooltipContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-[60] rounded-md bg-elevated border border-line/12 px-2.5 py-1.5 text-xs font-medium text-ink-primary shadow-pop',
+        'z-[60] rounded-lg border border-line/10 bg-elevated/95 px-2.5 py-1.5 text-xs font-medium text-ink-primary shadow-pop backdrop-blur-xl',
         'data-[state=delayed-open]:animate-scale-in',
         className,
       )}
       {...props}
-    />
+    >
+      {props.children}
+      <TooltipPrimitive.Arrow className="fill-elevated" width={10} height={5} />
+    </TooltipPrimitive.Content>
   </TooltipPrimitive.Portal>
 ))
 TooltipContent.displayName = 'TooltipContent'
@@ -232,7 +235,7 @@ export const PopoverContent = React.forwardRef<
       ref={ref}
       align={align}
       sideOffset={sideOffset}
-      className={cn('z-50 rounded-lg border border-line/12 bg-elevated p-2 shadow-pop outline-none data-[state=open]:animate-scale-in', className)}
+      className={cn('z-50 rounded-xl border border-line/10 bg-elevated/95 p-2 shadow-pop outline-none backdrop-blur-xl data-[state=open]:animate-scale-in', className)}
       {...props}
     />
   </PopoverPrimitive.Portal>
@@ -250,7 +253,7 @@ export const HoverCardContent = React.forwardRef<
       ref={ref}
       align={align}
       sideOffset={sideOffset}
-      className={cn('z-50 w-80 rounded-lg border border-line/12 bg-elevated shadow-pop outline-none data-[state=open]:animate-scale-in', className)}
+      className={cn('z-50 w-80 rounded-xl border border-line/10 bg-elevated/95 shadow-pop outline-none backdrop-blur-xl data-[state=open]:animate-scale-in', className)}
       {...props}
     />
   </HoverCardPrimitive.Portal>

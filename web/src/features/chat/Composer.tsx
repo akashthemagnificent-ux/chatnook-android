@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Paperclip, Send, Smile, X } from 'lucide-react'
 import { useChat, previewPeople } from '../../data/ChatContext'
 import { useAppStore } from '../../store/app'
-import { Button } from '../../components/ui/base'
+import { ShimmerButton } from '../../components/fx/buttons'
 import { Popover, PopoverTrigger, PopoverContent, IconTooltip } from '../../components/ui/overlay'
 import { EmojiPicker } from '../../components/EmojiPicker'
 import { LoaderDots } from '../../components/LoaderDots'
@@ -127,20 +127,20 @@ export function Composer({ replyTo, onCancelReply }: { replyTo: Message | null; 
   return (
     <div className={cn('relative shrink-0 bg-base px-4 pb-4', density === 'compact' ? 'pt-1' : 'pt-2')}>
       {replyTo && (
-        <div className="mb-2 flex items-center gap-2 rounded-md bg-surface px-3 py-2 text-sm">
+        <div className="mb-2 flex animate-fade-up items-center gap-2 rounded-xl border border-line/10 border-l-2 border-l-brand bg-surface/80 px-3 py-2 text-sm backdrop-blur">
           <span className="min-w-0 flex-1 truncate text-ink-secondary">
             <span className="font-medium text-ink-primary">{t('message.replyTo')} </span>
             {displayName(replyTo.author)}: {replyTo.content ?? t('message.imageAlt')}
           </span>
-          <button onClick={onCancelReply} aria-label={t('composer.cancelReply')} className="rounded-sm p-1 text-ink-muted hover:text-ink-primary"><X className="size-4" /></button>
+          <button onClick={onCancelReply} aria-label={t('composer.cancelReply')} className="rounded-lg p-1 text-ink-muted transition-colors hover:bg-hover hover:text-ink-primary"><X className="size-4" /></button>
         </div>
       )}
 
       {mentionQuery !== null && candidates.length > 0 && (
-        <div className="absolute bottom-full left-4 right-4 z-20 mb-2 overflow-hidden rounded-lg border border-line/12 bg-elevated shadow-pop">
+        <div className="absolute bottom-full left-4 right-4 z-20 mb-2 origin-bottom animate-scale-in overflow-hidden rounded-xl border border-line/10 bg-elevated/95 shadow-pop backdrop-blur-xl">
           {candidates.map((p) => (
             <button key={p.id} onClick={() => pickMention(p.username)}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-hover">
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-hover">
               <span className="font-medium text-ink-primary">{p.name}</span>
               <span className="text-ink-muted">@{p.username}</span>
             </button>
@@ -149,13 +149,13 @@ export function Composer({ replyTo, onCancelReply }: { replyTo: Message | null; 
       )}
 
       <div className={cn(
-        'flex items-end gap-1 rounded-lg border border-line/12 bg-elevated px-2 py-1.5 transition-colors',
-        'focus-within:border-brand/50 focus-within:ring-2 focus-within:ring-brand/20',
+        'flex items-end gap-1 rounded-2xl border border-line/12 bg-elevated/80 px-2 py-1.5 shadow-[inset_0_1px_0_rgb(var(--line)/0.04)] backdrop-blur transition-[border-color,box-shadow] duration-200',
+        'focus-within:border-brand/45 focus-within:shadow-[0_0_0_3px_rgb(var(--brand)/0.12),0_12px_44px_-22px_rgb(var(--brand)/0.55)]',
         disabled && 'opacity-60',
       )}>
         <IconTooltip label={t('composer.attach')} side="top">
           <button onClick={() => fileRef.current?.click()} disabled={disabled || uploading}
-            aria-label={t('composer.attach')} className="flex size-9 shrink-0 items-center justify-center rounded-md text-ink-secondary hover:bg-hover hover:text-ink-primary disabled:opacity-50">
+            aria-label={t('composer.attach')} className="flex size-9 shrink-0 items-center justify-center rounded-lg text-ink-secondary transition-all duration-150 hover:bg-hover hover:text-ink-primary active:scale-95 disabled:opacity-50">
             {uploading ? <LoaderDots /> : <Paperclip className="size-5" />}
           </button>
         </IconTooltip>
@@ -172,7 +172,7 @@ export function Composer({ replyTo, onCancelReply }: { replyTo: Message | null; 
         <Popover>
           <PopoverTrigger asChild>
             <button disabled={disabled} aria-label={t('composer.emoji')}
-              className="flex size-9 shrink-0 items-center justify-center rounded-md text-ink-secondary hover:bg-hover hover:text-ink-primary disabled:opacity-50">
+              className="flex size-9 shrink-0 items-center justify-center rounded-lg text-ink-secondary transition-all duration-150 hover:bg-hover hover:text-ink-primary active:scale-95 disabled:opacity-50">
               <Smile className="size-5" />
             </button>
           </PopoverTrigger>
@@ -181,10 +181,10 @@ export function Composer({ replyTo, onCancelReply }: { replyTo: Message | null; 
           </PopoverContent>
         </Popover>
 
-        <Button variant="primary" size="sm" onClick={() => void doSend()} disabled={disabled || uploading || (!value.trim() && !uploading)}
+        <ShimmerButton type="button" size="sm" onClick={() => void doSend()} disabled={disabled || uploading || (!value.trim() && !uploading)}
           className="mb-0.5 shrink-0" aria-label={t('composer.send')}>
           <Send className="size-4" /> <span className="hidden md:inline">{t('composer.send')}</span>
-        </Button>
+        </ShimmerButton>
       </div>
 
       <div className="mt-1.5 flex items-center justify-between px-1">

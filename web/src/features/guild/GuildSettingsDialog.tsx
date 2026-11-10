@@ -1,6 +1,7 @@
 // Server settings (spec §3.17): nav + content card. Overview, members, roles,
 // emojis, danger. Every write goes through the existing RPCs/policies.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 import {
   AlertTriangle, Check, ImagePlus, Shield, Smile, Trash2, Users, Wrench,
 } from 'lucide-react'
@@ -38,6 +39,7 @@ export function GuildSettingsDialog() {
   const { activeGuild, permissions } = useChat()
   const userId = useSession((s) => s.userId)
   const open = overlay === 'guildSettings' && Boolean(activeGuild)
+  const navLayoutId = useId()
 
   const isOwner = Boolean(activeGuild && userId === activeGuild.owner_id)
   const canManage = isOwner || (permissions & MANAGE_GUILD) !== 0
@@ -67,24 +69,40 @@ export function GuildSettingsDialog() {
                 <button key={id} onClick={() => setSection(id)} disabled={disabled}
                   aria-current={section === id ? 'page' : undefined}
                   className={cn(
-                    'flex min-h-10 shrink-0 items-center gap-2.5 rounded-md px-3 text-sm font-medium transition-colors',
-                    section === id ? 'bg-elevated text-ink-primary shadow-sm' : 'text-ink-secondary hover:bg-hover hover:text-ink-primary',
+                    'relative flex min-h-10 shrink-0 items-center gap-2.5 rounded-lg px-3 text-sm font-medium transition-colors',
+                    section === id ? 'text-ink-primary' : 'text-ink-secondary hover:bg-hover hover:text-ink-primary',
                     id === 'danger' && 'text-danger hover:bg-danger/10 hover:text-danger',
                     disabled && 'pointer-events-none opacity-40',
                   )}>
-                  <Icon className="size-4" />
-                  {label}
+                  {section === id && id !== 'danger' && (
+                    <motion.span
+                      layoutId={`guild-nav-${navLayoutId}`}
+                      transition={{ type: 'spring', stiffness: 480, damping: 40 }}
+                      className="absolute inset-0 rounded-lg bg-elevated shadow-[inset_0_1px_0_rgb(var(--line)/0.06)]"
+                    />
+                  )}
+                  {section === id && id === 'danger' && (
+                    <motion.span
+                      layoutId={`guild-nav-${navLayoutId}`}
+                      transition={{ type: 'spring', stiffness: 480, damping: 40 }}
+                      className="absolute inset-0 rounded-lg bg-danger/10"
+                    />
+                  )}
+                  <Icon className="relative size-4" />
+                  <span className="relative">{label}</span>
                 </button>
               )
             })}
           </nav>
 
           <div className="min-w-0 flex-1 overflow-y-auto scrollbar-thin p-5 sm:p-7">
-            {activeGuild && section === 'overview' && <Overview guildId={activeGuild.id} name={activeGuild.name} iconUrl={activeGuild.icon_url} />}
-            {activeGuild && section === 'members' && <MembersTab />}
-            {activeGuild && section === 'roles' && <RolesTab guildId={activeGuild.id} />}
-            {activeGuild && section === 'emojis' && <EmojisTab guildId={activeGuild.id} />}
-            {activeGuild && section === 'danger' && <DangerTab />}
+            <div key={section} className="animate-fade-up">
+              {activeGuild && section === 'overview' && <Overview guildId={activeGuild.id} name={activeGuild.name} iconUrl={activeGuild.icon_url} />}
+              {activeGuild && section === 'members' && <MembersTab />}
+              {activeGuild && section === 'roles' && <RolesTab guildId={activeGuild.id} />}
+              {activeGuild && section === 'emojis' && <EmojisTab guildId={activeGuild.id} />}
+              {activeGuild && section === 'danger' && <DangerTab />}
+            </div>
           </div>
         </div>
       </DialogContent>

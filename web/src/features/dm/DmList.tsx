@@ -34,7 +34,7 @@ export function DmList({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-col bg-surface">
-      <div className="flex items-center justify-between gap-2 px-3 pt-3">
+      <div className="flex h-14 items-center justify-between gap-2 border-b border-line/10 bg-gradient-to-b from-elevated/25 to-transparent px-3">
         <h2 className="truncate px-1 text-md font-semibold text-ink-primary">{t('dms.title')}</h2>
         <Button variant="ghost" size="icon-sm" aria-label={t('sidebar.newDm')} onClick={() => setStartOpen(true)}>
           <MessageSquarePlus />
@@ -61,9 +61,12 @@ export function DmList({ onNavigate }: { onNavigate?: () => void }) {
               return (
                 <button key={d.channel_id} onClick={() => pick(d.channel_id)}
                   className={cn(
-                    'group flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left transition-colors duration-150',
-                    active ? 'bg-active' : 'hover:bg-hover',
+                    'group relative flex w-full items-center gap-3 overflow-hidden rounded-lg px-2.5 py-2 text-left transition-colors duration-150',
+                    active ? 'bg-gradient-to-r from-brand/12 to-transparent' : 'hover:bg-hover',
                   )}>
+                  {active && (
+                    <span aria-hidden className="absolute inset-y-2 left-0 w-0.5 rounded-r-full bg-brand" />
+                  )}
                   <UserAvatar name={d.name} src={d.avatar_url} size={36} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center justify-between gap-2">

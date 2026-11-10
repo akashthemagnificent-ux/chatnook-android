@@ -24,6 +24,7 @@ dist-ssr
 *.sw?
 
 # Local Supabase credentials (never commit)
+.env.live
 .env
 .env.local
 .env.*.local

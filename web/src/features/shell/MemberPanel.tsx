@@ -63,10 +63,10 @@ export function MemberPanel({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <aside className="flex h-full min-h-0 w-full flex-col bg-surface" aria-label={t('members.title')}>
-      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-line/10 px-4">
-        <Users className="size-4 text-ink-muted" />
+      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-line/10 bg-gradient-to-b from-elevated/25 to-transparent px-4">
+        <Users className="size-4 text-brand" />
         <h2 className="text-sm font-semibold text-ink-primary">{t('members.title')}</h2>
-        <span className="ml-auto text-xs text-ink-muted">{members.length}</span>
+        <span className="ml-auto rounded-full border border-line/10 bg-elevated/60 px-2 py-0.5 text-xs tabular-nums text-ink-secondary">{members.length}</span>
       </div>
 
       {members.length === 0 ? (
@@ -120,7 +120,8 @@ function MemberRow({ member, presence, onClick }: { member: Member; presence?: P
   }, null)
   const color = roleColor(topRole?.color)
   return (
-    <button onClick={onClick} className="group flex h-12 w-full items-center gap-3 px-3 text-left transition-colors hover:bg-hover">
+    <button onClick={onClick} className="group relative flex h-12 w-full items-center gap-3 px-3 text-left transition-colors hover:bg-hover/70">
+      <span aria-hidden className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-brand opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
       <UserAvatar name={name} src={member.profile?.avatar_url} size={32} presence={presence ?? 'offline'} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium" style={{ color: color ?? 'rgb(var(--text-primary))' }}>{name}</span>

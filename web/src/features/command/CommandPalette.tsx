@@ -33,7 +33,7 @@ export function CommandPalette() {
         {textChannels.length > 0 && (
           <CommandGroup heading={t('command.channels')}>
             {textChannels.map((c) => (
-              <CommandItem key={c.id} value={`channel ${c.name}`} onSelect={() => run(() => selectChannel(c.id))}>
+              <CommandItem key={c.id} value={c.name ?? ""} onSelect={() => run(() => selectChannel(c.id))}>
                 <Hash className="size-4 text-ink-muted" />
                 <span>{c.name}</span>
                 {c.topic && <span className="ml-auto truncate text-xs text-ink-muted">{c.topic}</span>}
@@ -45,7 +45,7 @@ export function CommandPalette() {
         {dms.length > 0 && (
           <CommandGroup heading={t('command.dms')}>
             {dms.map((d) => (
-              <CommandItem key={d.channel_id} value={`dm ${d.name}`} onSelect={() => run(() => void openDm(d.user_id))}>
+              <CommandItem key={d.channel_id} value={d.name ?? ""} onSelect={() => run(() => void openDm(d.user_id))}>
                 <UserAvatar name={d.name} src={d.avatar_url} size={22} />
                 <span>{d.name}</span>
               </CommandItem>
@@ -56,7 +56,7 @@ export function CommandPalette() {
         {members.length > 0 && (
           <CommandGroup heading={t('command.people')}>
             {members.map((m) => (
-              <CommandItem key={m.user_id} value={`person ${displayName(m.profile)} ${m.profile?.username ?? ''}`}
+              <CommandItem key={m.user_id} value={`${displayName(m.profile)} ${m.profile?.username ?? ''}`}
                 onSelect={() => run(() => void openDm(m.user_id))}>
                 <UserAvatar name={displayName(m.profile)} src={m.profile?.avatar_url} size={22} />
                 <span>{displayName(m.profile)}</span>
@@ -70,7 +70,7 @@ export function CommandPalette() {
 
         <CommandGroup heading={t('command.servers')}>
           {guilds.map((g) => (
-            <CommandItem key={g.id} value={`server ${g.name}`} onSelect={() => run(() => selectGuild(g.id))}>
+            <CommandItem key={g.id} value={g.name ?? ""} onSelect={() => run(() => selectGuild(g.id))}>
               <Users className="size-4 text-ink-muted" />
               <span>{g.name}</span>
               {g.id === activeGuild?.id && <span className="ml-auto text-xs text-brand">{t('common.open')}</span>}
