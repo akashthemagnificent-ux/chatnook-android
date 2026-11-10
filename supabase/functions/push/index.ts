@@ -12,6 +12,8 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+import { type Level, mentions, preview, wantsPush } from "./rules.ts";
+
 type MessageRow = {
   id: string;
   channel_id: string;
@@ -85,12 +87,6 @@ async function fcmAccessToken(account: ServiceAccount): Promise<string> {
   return body.access_token as string;
 }
 
-function preview(content: string | null): string {
-  const text = (content ?? "").replace(/\s+/g, " ").trim();
-  if (text.length <= 140) return text;
-  return text.slice(0, 139) + "…";
-}
-
 Deno.serve(async (request) => {
   const secret = Deno.env.get("PUSH_WEBHOOK_SECRET");
   if (secret && request.headers.get("x-webhook-secret") !== secret) {
@@ -148,10 +144,47 @@ Deno.serve(async (request) => {
   const targets = recipients.filter((id) => !caughtUp.has(id));
   if (targets.length === 0) return new Response("all caught up", { status: 200 });
 
+  // Muted servers and per-channel levels are the member's own choice, so they win over
+  // everything above. DMs have no guild and are always delivered.
+  let wanted = targets;
+  if (channel.guild_id) {
+    const { data: mutes } = await supabase
+      .from("guild_notification_settings")
+      .select("user_id")
+      .eq("guild_id", channel.guild_id)
+      .eq("muted", true)
+      .in("user_id", wanted);
+    const muted = new Set((mutes ?? []).map((row) => row.user_id));
+
+    const { data: overrides } = await supabase
+      .from("channel_notification_settings")
+      .select("user_id,level")
+      .eq("channel_id", channel.id)
+      .in("user_id", wanted);
+    const level = new Map((overrides ?? []).map((row) => [row.user_id, row.level as Level]));
+
+    const mentionOnly = wanted.filter(
+      (id) => !muted.has(id) && level.get(id) === "mentions",
+    );
+    const mentioned = new Set<string>();
+    if (mentionOnly.length > 0) {
+      const { data: people } = await supabase
+        .from("profiles")
+        .select("id,username")
+        .in("id", mentionOnly);
+      for (const row of people ?? []) {
+        if (mentions(record.content!, row.username)) mentioned.add(row.id);
+      }
+    }
+
+    wanted = wanted.filter((id) => wantsPush(level.get(id), muted.has(id), mentioned.has(id)));
+    if (wanted.length === 0) return new Response("muted", { status: 200 });
+  }
+
   const { data: tokens } = await supabase
     .from("push_tokens")
     .select("token")
-    .in("user_id", targets);
+    .in("user_id", wanted);
   if (!tokens?.length) return new Response("no devices", { status: 200 });
 
   const { data: author } = await supabase

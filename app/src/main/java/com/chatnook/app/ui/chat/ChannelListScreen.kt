@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -30,8 +31,11 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
@@ -60,6 +64,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.chatnook.app.R
 import com.chatnook.app.domain.model.ChatChannel
 import com.chatnook.app.domain.model.Guild
+import com.chatnook.app.domain.model.NotificationLevel
 import com.chatnook.app.domain.model.PermissionBits
 import com.chatnook.app.domain.model.UnreadState
 import com.chatnook.app.domain.model.gradientStops
@@ -85,12 +90,15 @@ fun ChannelListScreen(
     val home by viewModel.home.collectAsStateWithLifecycle()
     val dms by viewModel.dms.collectAsStateWithLifecycle()
     val permissions by viewModel.permissions.collectAsStateWithLifecycle()
+    val channelLevels by viewModel.channelLevels.collectAsStateWithLifecycle()
+    val guildMuted by viewModel.guildMuted.collectAsStateWithLifecycle()
     val guildsLoaded by viewModel.guildsLoaded.collectAsStateWithLifecycle()
     val channelsLoaded by viewModel.channelsLoaded.collectAsStateWithLifecycle()
 
     var dialog by remember { mutableStateOf<HomeDialog?>(null) }
     var editingChannel by remember { mutableStateOf<ChatChannel?>(null) }
     var deletingChannel by remember { mutableStateOf<ChatChannel?>(null) }
+    var channelMenu by remember { mutableStateOf<ChatChannel?>(null) }
     val selectedGuild = guilds.firstOrNull { it.guildId == selectedGuildId }
     // RLS is the real gate; these only hide actions that would fail.
     val canManageChannels = permissions has PermissionBits.MANAGE_CHANNELS
@@ -162,6 +170,7 @@ fun ChannelListScreen(
                     accent = profile?.gradientStops?.firstOrNull()
                         ?.let { androidx.compose.ui.graphics.Color(it.toInt()) }
                         ?: ChatNookColors.Blurple,
+                    muted = !home && guildMuted,
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
@@ -238,12 +247,9 @@ fun ChannelListScreen(
                             ChannelRow(
                                 channel = channel,
                                 unread = unread[channel.channelId] ?: UnreadState.None,
+                                quiet = channelLevels[channel.channelId] == NotificationLevel.NONE,
                                 onClick = { onOpenChannel(channel.channelId, channel.name) },
-                                onLongClick = if (canManageChannels) {
-                                    { editingChannel = channel }
-                                } else {
-                                    null
-                                },
+                                onLongClick = { channelMenu = channel },
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                         }
@@ -291,6 +297,27 @@ fun ChannelListScreen(
                 editingChannel = null
             },
             onDismiss = { editingChannel = null },
+        )
+    }
+
+    channelMenu?.let { channel ->
+        ChannelMenuSheet(
+            channel = channel,
+            level = channelLevels[channel.channelId] ?: NotificationLevel.ALL,
+            canManage = canManageChannels,
+            onLevel = { level ->
+                viewModel.setChannelLevel(channel.channelId, level)
+                channelMenu = null
+            },
+            onEdit = {
+                editingChannel = channel
+                channelMenu = null
+            },
+            onDelete = {
+                deletingChannel = channel
+                channelMenu = null
+            },
+            onDismiss = { channelMenu = null },
         )
     }
 
@@ -447,19 +474,31 @@ private fun Header(
     onOpenProfile: () -> Unit,
     avatarUrl: String?,
     accent: androidx.compose.ui.graphics.Color,
+    muted: Boolean = false,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 16.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (muted) {
+                    Icon(
+                        imageVector = Icons.Filled.NotificationsOff,
+                        contentDescription = stringResource(R.string.notifications_muted),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 6.dp).size(18.dp),
+                    )
+                }
+            }
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
@@ -482,6 +521,7 @@ private fun Header(
 private fun ChannelRow(
     channel: ChatChannel,
     unread: UnreadState,
+    quiet: Boolean,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)?,
 ) {
@@ -516,8 +556,87 @@ private fun ChannelRow(
                 )
             }
         }
+        if (quiet) {
+            Icon(
+                imageVector = Icons.Filled.NotificationsOff,
+                contentDescription = stringResource(R.string.notifications_muted),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+        }
         UnreadBadge(unread, tag = channel.name)
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChannelMenuSheet(
+    channel: ChatChannel,
+    level: NotificationLevel,
+    canManage: Boolean,
+    onLevel: (NotificationLevel) -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.padding(bottom = 12.dp)) {
+            Text(
+                text = stringResource(R.string.notifications_channel_sheet, channel.name),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            )
+            NotificationLevel.entries.forEach { option ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onLevel(option) }
+                        .testTag("notif_${option.wire}")
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    RadioButton(selected = option == level, onClick = null)
+                    Column {
+                        Text(
+                            text = stringResource(option.labelRes()),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            text = stringResource(option.hintRes()),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            if (canManage) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                TextButton(
+                    onClick = onEdit,
+                    modifier = Modifier.fillMaxWidth().testTag("channel_edit"),
+                ) { Text(stringResource(R.string.channel_edit)) }
+                TextButton(
+                    onClick = onDelete,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.channel_delete), color = ChatNookColors.Red) }
+            }
+        }
+    }
+}
+
+private fun NotificationLevel.labelRes(): Int = when (this) {
+    NotificationLevel.ALL -> R.string.notifications_level_all
+    NotificationLevel.MENTIONS -> R.string.notifications_level_mentions
+    NotificationLevel.NONE -> R.string.notifications_level_none
+}
+
+private fun NotificationLevel.hintRes(): Int = when (this) {
+    NotificationLevel.ALL -> R.string.notifications_level_all_hint
+    NotificationLevel.MENTIONS -> R.string.notifications_level_mentions_hint
+    NotificationLevel.NONE -> R.string.notifications_level_none_hint
 }
 
 /** Discord's two badges: a red @count for mentions, a muted count for the rest. */

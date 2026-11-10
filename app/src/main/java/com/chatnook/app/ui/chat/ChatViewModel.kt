@@ -16,6 +16,7 @@ import com.chatnook.app.domain.model.GuildRole
 import com.chatnook.app.domain.model.Invite
 import com.chatnook.app.domain.model.Member
 import com.chatnook.app.domain.model.MemberGroup
+import com.chatnook.app.domain.model.NotificationLevel
 import com.chatnook.app.domain.model.Profile
 import com.chatnook.app.domain.model.ProfileTheme
 import com.chatnook.app.domain.model.TypingUser
@@ -394,6 +395,32 @@ class ChatViewModel(
 
     fun uploadGuildIcon(bytes: ByteArray, extension: String) {
         uploadCosmetic("avatars", bytes, extension) { url -> updateGuild(iconUrl = url) }
+    }
+
+    /** Whether the caller muted the selected server's notifications. */
+    val guildMuted: StateFlow<Boolean> = _selectedGuildId
+        .filterNotNull()
+        .distinctUntilChanged()
+        .flatMapLatest { repository.getGuildMuted(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** Per-channel notification levels; absent means every message. */
+    val channelLevels: StateFlow<Map<String, NotificationLevel>> = repository.getChannelLevels()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    fun setGuildMuted(muted: Boolean) {
+        val guildId = _selectedGuildId.value ?: return
+        viewModelScope.launch {
+            runCatching { repository.setGuildMuted(guildId, muted) }
+                .onFailure { _notice.value = "Could not save: ${it.friendly()}" }
+        }
+    }
+
+    fun setChannelLevel(channelId: String, level: NotificationLevel) {
+        viewModelScope.launch {
+            runCatching { repository.setChannelLevel(channelId, level) }
+                .onFailure { _notice.value = "Could not save: ${it.friendly()}" }
+        }
     }
 
     fun createRole(name: String, color: Int?, permissions: Long) {

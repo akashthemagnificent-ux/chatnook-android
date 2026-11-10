@@ -149,6 +149,18 @@
     <string name="notifications_channel_description">New messages in your channels and direct messages.</string>
     <string name="notifications_dm_title">%1$s</string>
     <string name="notifications_channel_title">#%1$s</string>
+    <string name="notifications_settings_title">Notifications</string>
+    <string name="notifications_mute_server">Mute this server</string>
+    <string name="notifications_mute_server_hint">Stop notifications from every channel here.</string>
+    <string name="notifications_channel_sheet">Notifications for #%1$s</string>
+    <string name="notifications_level_all">All messages</string>
+    <string name="notifications_level_all_hint">Notify me for every message.</string>
+    <string name="notifications_level_mentions">Only @mentions</string>
+    <string name="notifications_level_mentions_hint">Notify me when someone @mentions me.</string>
+    <string name="notifications_level_none">Nothing</string>
+    <string name="notifications_level_none_hint">Never notify me here.</string>
+    <string name="notifications_muted">Notifications off</string>
+    <string name="channel_edit">Edit channel</string>
 
     <!-- Roles and permissions -->    <string name="roles_title">Roles</string>
     <string name="roles_create">Create role</string>

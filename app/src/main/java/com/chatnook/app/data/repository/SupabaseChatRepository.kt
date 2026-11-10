@@ -11,10 +11,12 @@ import com.chatnook.app.domain.model.Guild
 import com.chatnook.app.domain.model.GuildRole
 import com.chatnook.app.domain.model.Invite
 import com.chatnook.app.domain.model.Member
+import com.chatnook.app.domain.model.NotificationLevel
 import com.chatnook.app.domain.model.OutgoingImage
 import com.chatnook.app.domain.model.Profile
 import com.chatnook.app.domain.model.TypingUser
 import com.chatnook.app.domain.model.UnreadState
+import com.chatnook.app.domain.model.boolean
 import com.chatnook.app.domain.model.int
 import com.chatnook.app.domain.model.str
 import com.chatnook.app.domain.repository.ChatRepository
@@ -341,6 +343,86 @@ class SupabaseChatRepository : ChatRepository {
                 put("role_ids", buildJsonArray { roleIds.forEach { add(it) } })
             },
         )
+    }
+
+    override fun getGuildMuted(guildId: String): Flow<Boolean> = flow {
+        val client = Supabase.clientOrNull() ?: return@flow
+
+        suspend fun load(): Boolean = client.from("guild_notification_settings")
+            .select(Columns.raw("muted")) {
+                filter {
+                    eq("guild_id", guildId)
+                    eq("user_id", userId())
+                }
+            }
+            .decodeList<JsonObject>()
+            .firstOrNull()
+            ?.boolean("muted")
+            ?: false
+
+        emit(loadOr("guild mute", false) { load() })
+
+        val channel = client.channel("guild-notifications-$guildId-${userId()}")
+        val events = channel.postgresChangeFlow<PostgresAction>("public") {
+            table = "guild_notification_settings"
+            filter("user_id", FilterOperator.EQ, userId())
+        }
+        channel.subscribe()
+        try {
+            events.collect { emit(loadOr("guild mute", false) { load() }) }
+        } finally {
+            client.dropChannel(channel)
+        }
+    }
+
+    override suspend fun setGuildMuted(guildId: String, muted: Boolean) {
+        val client = Supabase.clientOrNull() ?: error("Supabase not configured")
+        client.from("guild_notification_settings").upsert(
+            buildJsonObject {
+                put("user_id", userId())
+                put("guild_id", guildId)
+                put("muted", muted)
+            },
+        ) { onConflict = "user_id,guild_id" }
+    }
+
+    override fun getChannelLevels(): Flow<Map<String, NotificationLevel>> = flow {
+        val client = Supabase.clientOrNull() ?: return@flow
+
+        suspend fun load(): Map<String, NotificationLevel> =
+            client.from("channel_notification_settings")
+                .select(Columns.raw("channel_id,level")) { filter { eq("user_id", userId()) } }
+                .decodeList<JsonObject>()
+                .mapNotNull { row ->
+                    val id = row.str("channel_id") ?: return@mapNotNull null
+                    id to NotificationLevel.fromWire(row.str("level"))
+                }
+                .toMap()
+
+        emit(loadOr("notification levels", emptyMap()) { load() })
+
+        val channel = client.channel("channel-notifications-${userId()}")
+        val events = channel.postgresChangeFlow<PostgresAction>("public") {
+            table = "channel_notification_settings"
+            filter("user_id", FilterOperator.EQ, userId())
+        }
+        channel.subscribe()
+        try {
+            events.collect { emit(loadOr("notification levels", emptyMap()) { load() }) }
+        } finally {
+            client.dropChannel(channel)
+        }
+    }
+
+    override suspend fun setChannelLevel(channelId: String, level: NotificationLevel) {
+        val client = Supabase.clientOrNull() ?: error("Supabase not configured")
+        client.from("channel_notification_settings").upsert(
+            buildJsonObject {
+                put("user_id", userId())
+                put("channel_id", channelId)
+                put("level", level.wire)
+            },
+        ) { onConflict = "user_id,channel_id" }
     }
 
     override suspend fun updateGuild(guildId: String, name: String?, iconUrl: String?) {

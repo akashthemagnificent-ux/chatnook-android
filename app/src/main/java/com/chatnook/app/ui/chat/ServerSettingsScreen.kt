@@ -76,6 +76,7 @@ fun ServerSettingsScreen(
     val invites by viewModel.invites.collectAsStateWithLifecycle()
     val roles by viewModel.roles.collectAsStateWithLifecycle()
     val permissions by viewModel.permissions.collectAsStateWithLifecycle()
+    val guildMuted by viewModel.guildMuted.collectAsStateWithLifecycle()
     val guild = guilds.firstOrNull { it.guildId == selectedGuildId }
     val context = LocalContext.current
 
@@ -216,6 +217,31 @@ fun ServerSettingsScreen(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             }
+
+            SectionTitle(stringResource(R.string.notifications_settings_title))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.notifications_mute_server),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = stringResource(R.string.notifications_mute_server_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = guildMuted,
+                    onCheckedChange = viewModel::setGuildMuted,
+                    modifier = Modifier.testTag("server_mute"),
+                )
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
             if (canManageGuild) {
                 SectionTitle(stringResource(R.string.server_danger_zone))
