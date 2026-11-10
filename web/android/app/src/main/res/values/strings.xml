@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ChatNook</string>
+    <string name="title_activity_main">ChatNook</string>
+    <string name="package_name">com.chatnook.web</string>
+    <string name="custom_url_scheme">com.chatnook.web</string>
+</resources>

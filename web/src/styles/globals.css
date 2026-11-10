@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * ChatNook design tokens (spec §1).
+ * Values are RGB triplets so Tailwind can apply opacity: `bg-brand/10`.
+ * Only these variables may define color; components never hardcode a hex.
+ */
+@layer base {
+  :root,
+  .theme-dark {
+    color-scheme: dark;
+
+    --bg-base: 11 13 16;
+    --bg-surface: 18 21 26;
+    --bg-elevated: 26 31 38;
+    --bg-hover: 34 40 49;
+    --bg-active: 45 53 64;
+
+    --line: 255 255 255;
+
+    --text-primary: 242 244 247;
+    --text-secondary: 163 172 185;
+    --text-muted: 122 132 148;
+    --text-on-accent: 24 13 8;
+
+    --brand: 255 122 69;
+    --brand-strong: 232 93 42;
+
+    --success: 52 211 153;
+    --warning: 251 191 36;
+    --danger: 248 113 113;
+    --info: 96 165 250;
+  }
+
+  .theme-light {
+    color-scheme: light;
+
+    --bg-base: 247 248 250;
+    --bg-surface: 255 255 255;
+    --bg-elevated: 255 255 255;
+    --bg-hover: 241 243 246;
+    --bg-active: 232 236 241;
+
+    --line: 15 23 42;
+
+    --text-primary: 20 23 28;
+    --text-secondary: 82 91 105;
+    --text-muted: 108 118 132;
+    --text-on-accent: 26 13 6;
+
+    --brand: 226 88 34;
+    --brand-strong: 194 65 12;
+
+    --success: 5 150 105;
+    --warning: 180 83 9;
+    --danger: 220 38 38;
+    --info: 37 99 235;
+  }
+
+  /* Accent variants (spec §1.6 single accent, §3.22 live preview). The coral
+     default lives in the theme blocks above; these override it for both themes.
+     Applied via [data-accent] so the no-flash boot script can set it pre-paint. */
+  [data-accent='violet'] { --brand: 139 92 246; --brand-strong: 124 58 237; --text-on-accent: 255 255 255; }
+  [data-accent='teal']   { --brand: 20 184 166; --brand-strong: 13 148 136; --text-on-accent: 5 38 36; }
+  [data-accent='blue']   { --brand: 59 130 246; --brand-strong: 37 99 235; --text-on-accent: 255 255 255; }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: rgb(var(--bg-base));
+    color: rgb(var(--text-primary));
+    font-family: 'Inter Variable', Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: 0.875rem;
+    line-height: 1.375rem;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overscroll-behavior: none;
+  }
+
+  ::selection {
+    background: rgb(var(--brand) / 0.28);
+    color: rgb(var(--text-primary));
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--brand));
+    outline-offset: 2px;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* Motion is decoration: remove it entirely when the OS asks (spec §1.4). */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--line) / 0.16) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgb(var(--line) / 0.14);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--line) / 0.24);
+    background-clip: padding-box;
+  }
+
+  .drag-none {
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}
