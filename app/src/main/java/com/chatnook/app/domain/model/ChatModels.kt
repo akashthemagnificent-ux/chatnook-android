@@ -48,6 +48,9 @@ data class Reaction(val emoji: String, val userIds: List<String>) {
     }
 }
 
+/** Longest message the server accepts; the composer stops typing here. */
+const val MAX_MESSAGE_LENGTH = 2000
+
 data class ChatMessage(
     val messageId: String,
     val channelId: String,

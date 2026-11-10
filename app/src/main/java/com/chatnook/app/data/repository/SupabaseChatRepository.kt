@@ -3,6 +3,8 @@ package com.chatnook.app.data.repository
 import android.util.Log
 import com.chatnook.app.data.Supabase
 import com.chatnook.app.data.realtime.TypingSession
+import com.chatnook.app.domain.model.AuditEntry
+import com.chatnook.app.domain.model.BannedUser
 import com.chatnook.app.domain.model.ChatChannel
 import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
@@ -342,6 +344,97 @@ class SupabaseChatRepository : ChatRepository {
                 put("member_id", userId)
                 put("role_ids", buildJsonArray { roleIds.forEach { add(it) } })
             },
+        )
+    }
+
+    // ---------------------------------------------------------------- moderation
+
+    override fun getBans(guildId: String): Flow<List<BannedUser>> = flow {
+        val client = Supabase.clientOrNull() ?: return@flow
+
+        suspend fun load(): List<BannedUser> = client.from("guild_bans")
+            .select(
+                Columns.raw(
+                    "user_id,reason,created_at," +
+                        "profile:profiles!guild_bans_user_id_fkey(display_name,username,avatar_url)",
+                ),
+            ) { filter { eq("guild_id", guildId) }; order("created_at", Order.DESCENDING) }
+            .decodeList<JsonObject>()
+            .mapNotNull(BannedUser::fromJson)
+
+        emit(loadOr("bans", emptyList()) { load() })
+
+        val channel = client.channel("bans-$guildId")
+        val events = channel.postgresChangeFlow<PostgresAction>("public") {
+            table = "guild_bans"
+            filter("guild_id", FilterOperator.EQ, guildId)
+        }
+        channel.subscribe()
+        try {
+            events.collect { emit(loadOr("bans", emptyList()) { load() }) }
+        } finally {
+            client.dropChannel(channel)
+        }
+    }
+
+    override fun getAuditLog(guildId: String): Flow<List<AuditEntry>> = flow {
+        val client = Supabase.clientOrNull() ?: return@flow
+
+        suspend fun load(): List<AuditEntry> = client.from("guild_audit_log")
+            .select(
+                Columns.raw(
+                    "id,action,detail,created_at," +
+                        "actor:profiles!guild_audit_log_actor_id_fkey(display_name,username)," +
+                        "target:profiles!guild_audit_log_target_id_fkey(display_name,username)",
+                ),
+            ) {
+                filter { eq("guild_id", guildId) }
+                order("created_at", Order.DESCENDING)
+                limit(50)
+            }
+            .decodeList<JsonObject>()
+            .mapNotNull(AuditEntry::fromJson)
+
+        emit(loadOr("audit", emptyList()) { load() })
+
+        val channel = client.channel("audit-$guildId")
+        val events = channel.postgresChangeFlow<PostgresAction>("public") {
+            table = "guild_audit_log"
+            filter("guild_id", FilterOperator.EQ, guildId)
+        }
+        channel.subscribe()
+        try {
+            events.collect { emit(loadOr("audit", emptyList()) { load() }) }
+        } finally {
+            client.dropChannel(channel)
+        }
+    }
+
+    override suspend fun kickMember(guildId: String, userId: String) {
+        val client = Supabase.clientOrNull() ?: error("Supabase not configured")
+        client.postgrest.rpc(
+            "kick_member",
+            buildJsonObject { put("gid", guildId); put("member", userId) },
+        )
+    }
+
+    override suspend fun banMember(guildId: String, userId: String, reason: String?) {
+        val client = Supabase.clientOrNull() ?: error("Supabase not configured")
+        client.postgrest.rpc(
+            "ban_member",
+            buildJsonObject {
+                put("gid", guildId)
+                put("member", userId)
+                put("reason", reason)
+            },
+        )
+    }
+
+    override suspend fun unbanMember(guildId: String, userId: String) {
+        val client = Supabase.clientOrNull() ?: error("Supabase not configured")
+        client.postgrest.rpc(
+            "unban_member",
+            buildJsonObject { put("gid", guildId); put("member", userId) },
         )
     }
 

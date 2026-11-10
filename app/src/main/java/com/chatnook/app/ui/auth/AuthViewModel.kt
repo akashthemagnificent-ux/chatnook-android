@@ -121,4 +121,17 @@ class AuthViewModel : ViewModel() {
             }
         }
     }
+
+    /** The only way back into an email account whose password is forgotten. */
+    fun resetPassword(email: String) {
+        if (email.isBlank()) {
+            _ui.update { it.copy(error = "Enter your email first") }
+            return
+        }
+        viewModelScope.launch {
+            callAuth("Password reset link sent to $email.") { auth ->
+                auth.resetPasswordForEmail(email)
+            }
+        }
+    }
 }

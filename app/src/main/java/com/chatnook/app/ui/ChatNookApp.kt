@@ -41,6 +41,7 @@ import com.chatnook.app.ui.chat.ChannelListScreen
 import com.chatnook.app.ui.chat.ChatScreen
 import com.chatnook.app.ui.chat.ChatViewModel
 import com.chatnook.app.ui.chat.MembersScreen
+import com.chatnook.app.ui.chat.ModerationScreen
 import com.chatnook.app.ui.chat.ProfileScreen
 import com.chatnook.app.ui.chat.ServerSettingsScreen
 import com.chatnook.app.ui.theme.ChatNookTheme
@@ -51,6 +52,7 @@ private const val ROUTE_CHANNELS = "channels"
 private const val ROUTE_CHAT = "chat/{channelId}/{channelName}?dm={dm}"
 private const val ROUTE_MEMBERS = "members"
 private const val ROUTE_SERVER = "server"
+private const val ROUTE_MODERATION = "moderation"
 private const val ROUTE_PROFILE = "profile"
 
 private fun chatRoute(channelId: String, channelName: String, isDm: Boolean = false) =
@@ -216,6 +218,13 @@ private fun SignedInRoutes(authViewModel: AuthViewModel) {
         }
         composable(ROUTE_SERVER) {
             ServerSettingsScreen(
+                viewModel = chatViewModel,
+                onBack = { navController.popBackStack() },
+                onOpenModeration = { navController.navigate(ROUTE_MODERATION) },
+            )
+        }
+        composable(ROUTE_MODERATION) {
+            ModerationScreen(
                 viewModel = chatViewModel,
                 onBack = { navController.popBackStack() },
             )

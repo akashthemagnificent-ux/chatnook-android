@@ -70,6 +70,7 @@ private val dayFormat = SimpleDateFormat("d MMM yyyy", Locale.getDefault())
 fun ServerSettingsScreen(
     viewModel: ChatViewModel,
     onBack: () -> Unit,
+    onOpenModeration: () -> Unit,
 ) {
     val guilds by viewModel.guilds.collectAsStateWithLifecycle()
     val selectedGuildId by viewModel.selectedGuildId.collectAsStateWithLifecycle()
@@ -84,6 +85,7 @@ fun ServerSettingsScreen(
     val canManageGuild = permissions has PermissionBits.MANAGE_GUILD
     val canManageRoles = permissions has PermissionBits.MANAGE_ROLES
     val canInvite = permissions has PermissionBits.CREATE_INVITE
+    val canKick = permissions has PermissionBits.KICK_MEMBERS
 
     var name by remember(guild?.guildId) { mutableStateOf(guild?.name.orEmpty()) }
     var deleting by remember { mutableStateOf(false) }
@@ -242,6 +244,20 @@ fun ServerSettingsScreen(
                 )
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+
+            if (canKick) {
+                SectionTitle(stringResource(R.string.moderation_title))
+                OutlinedButton(
+                    onClick = onOpenModeration,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 4.dp)
+                        .testTag("server_moderation"),
+                ) {
+                    Text(stringResource(R.string.moderation_open))
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            }
 
             if (canManageGuild) {
                 SectionTitle(stringResource(R.string.server_danger_zone))

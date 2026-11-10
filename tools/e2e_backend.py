@@ -595,6 +595,59 @@ def run(created_users, created_guilds):
     st, _ = a.rpc("delete_role", {"p_role_id": everyone_id})
     check("everyone role cannot be deleted", st >= 400, st)
 
+    print("moderation")
+    g_tok, g_uid = signup()
+    created_users.append(g_uid)
+    g = Api(g_tok)
+    st, code = a.rpc("create_invite", {"gid": gid})
+    st2, joined = g.rpc("join_guild", {"invite_code": code})
+    check("moderation target joins", st2 == 200 and joined == gid, f"{st} {st2}")
+
+    st, _ = b.rpc("kick_member", {"gid": gid, "member": g_uid})
+    check("member cannot kick", st >= 400, st)
+    st, _ = a.rpc("kick_member", {"gid": gid, "member": a_uid})
+    check("owner cannot kick themselves", st >= 400, st)
+    st, _ = a.rpc("kick_member", {"gid": gid, "member": g_uid})
+    check("owner kicks member", st in (200, 204), st)
+    st, rows = a.get(f"/rest/v1/guild_members?select=user_id&guild_id=eq.{gid}&user_id=eq.{g_uid}")
+    check("kicked member is gone", rows == [], f"{st} {rows}")
+
+    st, joined = g.rpc("join_guild", {"invite_code": code})
+    check("kicked member can rejoin", st == 200 and joined == gid, f"{st} {joined}")
+
+    st, _ = a.rpc("ban_member", {"gid": gid, "member": g_uid, "reason": "spam"})
+    check("owner bans member", st in (200, 204), st)
+    st, rows = a.get(f"/rest/v1/guild_bans?select=user_id,reason&guild_id=eq.{gid}")
+    check("ban carries its reason",
+          st == 200 and rows == [{"user_id": g_uid, "reason": "spam"}], f"{st} {rows}")
+    st, rows = b.get(f"/rest/v1/guild_bans?select=user_id&guild_id=eq.{gid}")
+    check("ban list is hidden from plain members", rows == [], f"{st} {rows}")
+    st, joined = g.rpc("join_guild", {"invite_code": code})
+    check("banned member cannot rejoin", st >= 400, f"{st} {joined}")
+
+    st, _ = b.rpc("unban_member", {"gid": gid, "member": g_uid})
+    check("member cannot unban", st >= 400, st)
+    st, _ = a.rpc("unban_member", {"gid": gid, "member": g_uid})
+    check("owner unbans member", st in (200, 204), st)
+    st, joined = g.rpc("join_guild", {"invite_code": code})
+    check("unbanned member can rejoin", st == 200 and joined == gid, f"{st} {joined}")
+
+    st, rows = a.get(f"/rest/v1/guild_audit_log?select=action,detail&guild_id=eq.{gid}"
+                     "&order=created_at.asc")
+    check("audit log records kick, ban and unban",
+          st == 200 and [r["action"] for r in rows] == ["kick", "ban", "unban"], f"{st} {rows}")
+    check("audit ban row keeps the reason",
+          st == 200 and len(rows) == 3 and rows[1]["detail"] == "spam", rows)
+
+    print("message length")
+    st, mid = a.rpc("send_message", {"p_channel_id": cid, "p_content": "x" * 2000})
+    check("2000 characters accepted", st == 200 and isinstance(mid, str), f"{st} {mid}")
+    st, body = a.rpc("send_message", {"p_channel_id": cid, "p_content": "x" * 2001})
+    check("2001 characters refused", st >= 400, f"{st} {body}")
+    st, _ = a.post("/rest/v1/messages",
+                   {"channel_id": cid, "author_id": a_uid, "content": "x" * 2001})
+    check("length constraint holds on a direct insert", st == 400, st)
+
     print("profile card")
     st, rows = a.rpc("mutual_guilds", {"other": b_uid})
     check("mutual_guilds returns the shared server",
