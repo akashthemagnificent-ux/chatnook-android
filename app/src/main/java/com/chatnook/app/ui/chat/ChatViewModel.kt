@@ -39,6 +39,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -395,6 +396,18 @@ class ChatViewModel(
 
     fun uploadGuildIcon(bytes: ByteArray, extension: String) {
         uploadCosmetic("avatars", bytes, extension) { url -> updateGuild(iconUrl = url) }
+    }
+
+    /** Mutual servers per user id, fetched once when their card is opened. */
+    private val _mutualGuilds = MutableStateFlow<Map<String, List<Guild>>>(emptyMap())
+    val mutualGuilds: StateFlow<Map<String, List<Guild>>> = _mutualGuilds.asStateFlow()
+
+    fun loadMutualGuilds(userId: String) {
+        if (_mutualGuilds.value.containsKey(userId)) return
+        viewModelScope.launch {
+            runCatching { repository.getMutualGuilds(userId) }
+                .onSuccess { list -> _mutualGuilds.update { it + (userId to list) } }
+        }
     }
 
     /** Whether the caller muted the selected server's notifications. */

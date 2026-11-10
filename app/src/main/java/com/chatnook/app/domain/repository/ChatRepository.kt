@@ -130,6 +130,9 @@ interface ChatRepository {
     /** Replaces every role of one member in one call; owner only. */
     suspend fun setMemberRoles(guildId: String, userId: String, roleIds: List<String>)
 
+    /** Guilds the caller and [userId] both belong to; empty for a stranger. */
+    suspend fun getMutualGuilds(userId: String): List<Guild>
+
     /** Whether the caller muted this server's notifications. */
     fun getGuildMuted(guildId: String): Flow<Boolean>
 
