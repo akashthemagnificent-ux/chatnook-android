@@ -102,6 +102,10 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           chmod +x gradlew
+          # GITHUB_RUN_NUMBER restarts at 1 per workflow file, so the prototype's
+          # numbers (up to 58) beat this workflow's (7) and Android refused the
+          # update as a downgrade. The 1000 offset keeps this workflow above any
+          # code the prototype ever shipped.
           VERSION_NAME="${GITHUB_REF_NAME#v}"
           if [ "$GITHUB_REF_TYPE" != "tag" ]; then VERSION_NAME="0.4.${GITHUB_RUN_NUMBER}"; fi
           ./gradlew assembleRelease --no-daemon --stacktrace \
@@ -109,7 +113,7 @@ jobs:
             -PCHATNOOK_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" \
             -PCHATNOOK_KEY_ALIAS="$KEY_ALIAS" \
             -PCHATNOOK_KEY_PASSWORD="$KEY_PASSWORD" \
-            -PCHATNOOK_VERSION_CODE="${GITHUB_RUN_NUMBER:-1}" \
+            -PCHATNOOK_VERSION_CODE="$((1000 + ${GITHUB_RUN_NUMBER:-0}))" \
             -PCHATNOOK_VERSION_NAME="$VERSION_NAME"
 
       - name: Upload APK
