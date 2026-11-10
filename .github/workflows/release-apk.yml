@@ -53,6 +53,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # The push function's decisions are plain TypeScript; Node strips the types itself.
+      - name: Test push rules
+        run: node --test supabase/functions/push/rules.test.ts
+
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 

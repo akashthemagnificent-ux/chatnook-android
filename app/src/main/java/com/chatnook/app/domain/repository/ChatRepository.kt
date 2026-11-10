@@ -8,6 +8,7 @@ import com.chatnook.app.domain.model.Guild
 import com.chatnook.app.domain.model.GuildRole
 import com.chatnook.app.domain.model.Invite
 import com.chatnook.app.domain.model.Member
+import com.chatnook.app.domain.model.NotificationLevel
 import com.chatnook.app.domain.model.OutgoingImage
 import com.chatnook.app.domain.model.Profile
 import com.chatnook.app.domain.model.TypingUser
@@ -128,6 +129,16 @@ interface ChatRepository {
 
     /** Replaces every role of one member in one call; owner only. */
     suspend fun setMemberRoles(guildId: String, userId: String, roleIds: List<String>)
+
+    /** Whether the caller muted this server's notifications. */
+    fun getGuildMuted(guildId: String): Flow<Boolean>
+
+    suspend fun setGuildMuted(guildId: String, muted: Boolean)
+
+    /** The caller's per-channel levels; channels never touched are absent. */
+    fun getChannelLevels(): Flow<Map<String, NotificationLevel>>
+
+    suspend fun setChannelLevel(channelId: String, level: NotificationLevel)
 
     suspend fun getProfile(userId: String): Profile?
 
