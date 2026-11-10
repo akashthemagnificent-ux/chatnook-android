@@ -469,6 +469,22 @@ def run(created_users, created_guilds):
     st, _ = a.rpc("delete_role", {"p_role_id": everyone_id})
     check("everyone role cannot be deleted", st >= 400, st)
 
+    print("profile card")
+    st, rows = a.rpc("mutual_guilds", {"other": b_uid})
+    check("mutual_guilds returns the shared server",
+          st == 200 and [r["id"] for r in rows] == [gid], f"{st} {rows}")
+    st, rows = b.rpc("mutual_guilds", {"other": str(uuid.uuid4())})
+    check("mutual_guilds leaks nothing for a stranger", st == 200 and rows == [], f"{st} {rows}")
+
+    st, rows = a.get(f"/rest/v1/guild_members?select=joined_at&guild_id=eq.{gid}"
+                     f"&user_id=eq.{b_uid}")
+    check("joined_at is exposed for the card", st == 200 and bool(rows) and rows[0]["joined_at"],
+          f"{st} {rows}")
+
+    st, rows = a.get("/rest/v1/profiles?select=theme,avatar_decoration_url,avatar_is_animated"
+                     f"&id=eq.{b_uid}")
+    check("card cosmetics are readable", st == 200 and len(rows) == 1, f"{st} {rows}")
+
     print("server delete")
     b.delete(f"/rest/v1/guilds?id=eq.{gid}")
     check("member cannot delete guild",

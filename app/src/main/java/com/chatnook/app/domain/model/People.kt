@@ -20,6 +20,11 @@ data class Member(
     /** Every role id the member holds; used to preselect the assignment sheet. */
     val roleIds: List<String>,
     val isOwner: Boolean,
+    /** Epoch millis; 0 when the row predates the column. */
+    val joinedAt: Long = 0L,
+    val avatarDecorationUrl: String? = null,
+    val avatarIsAnimated: Boolean = false,
+    val theme: ProfileTheme = ProfileTheme.None,
 ) {
     /** What the list and the composer call them. */
     val label: String
@@ -50,6 +55,10 @@ data class Member(
                 rolePosition = topRole?.int("position") ?: -1,
                 roleIds = roles.mapNotNull { it.str("id") },
                 isOwner = ownerId != null && ownerId == id,
+                joinedAt = json.millis("joined_at"),
+                avatarDecorationUrl = profile.str("avatar_decoration_url"),
+                avatarIsAnimated = profile.boolean("avatar_is_animated") == true,
+                theme = ProfileTheme.fromJson(profile["theme"] as? JsonObject),
             )
         }
     }

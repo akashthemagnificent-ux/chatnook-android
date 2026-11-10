@@ -74,6 +74,7 @@
     <string name="members_empty">No members yet</string>
     <string name="members_owner_badge">OWNER</string>
     <string name="members_message">Message</string>
+    <string name="members_member_since">Member since %1$s</string>
     <string name="members_online">Online</string>
     <string name="members_offline">Offline</string>
     <plurals name="members_count">
@@ -83,6 +84,10 @@
     <plurals name="home_conversations">
         <item quantity="one">%1$d conversation</item>
         <item quantity="other">%1$d conversations</item>
+    </plurals>
+    <plurals name="members_mutual_servers">
+        <item quantity="one">%1$d mutual server</item>
+        <item quantity="other">%1$d mutual servers</item>
     </plurals>
 
     <!-- Profile / Nitro cosmetics -->

@@ -30,6 +30,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,12 +53,17 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.chatnook.app.R
+import com.chatnook.app.domain.model.Guild
 import com.chatnook.app.domain.model.GuildRole
+import com.chatnook.app.domain.model.HexColor
 import com.chatnook.app.domain.model.Member
 import com.chatnook.app.domain.model.MemberGroup
 import com.chatnook.app.domain.model.PermissionBits
 import com.chatnook.app.domain.model.has
 import com.chatnook.app.ui.theme.ChatNookColors
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.launch
 
 /** Guild roster: owner, then roles by position, then everyone else. */
@@ -70,9 +76,13 @@ fun MembersScreen(
     val groups by viewModel.memberGroups.collectAsStateWithLifecycle()
     val online by viewModel.onlineUsers.collectAsStateWithLifecycle()
     val roles by viewModel.roles.collectAsStateWithLifecycle()
+    val mutual by viewModel.mutualGuilds.collectAsStateWithLifecycle()
     val permissions by viewModel.permissions.collectAsStateWithLifecycle()
     val canManageRoles = permissions has PermissionBits.MANAGE_ROLES
     var selected by remember { mutableStateOf<Member?>(null) }
+    LaunchedEffect(selected?.userId) {
+        selected?.let { viewModel.loadMutualGuilds(it.userId) }
+    }
     val scope = rememberCoroutineScope()
     val total = groups.sumOf { it.members.size }
 
@@ -127,6 +137,7 @@ fun MembersScreen(
         ProfileSheet(
             member = member,
             online = member.userId in online,
+            mutual = mutual[member.userId],
             assignableRoles = roles.filter { !it.isEveryone },
             canManageRoles = canManageRoles,
             onSaveRoles = { ids -> viewModel.setMemberRoles(member, ids) },
@@ -248,6 +259,8 @@ private fun PresenceDot(online: Boolean, modifier: Modifier = Modifier) {
 private fun ProfileSheet(
     member: Member,
     online: Boolean,
+    /** Null until the count arrives; then a row of the caller's servers in common. */
+    mutual: List<Guild>?,
     assignableRoles: List<GuildRole>,
     canManageRoles: Boolean,
     onSaveRoles: (List<String>) -> Unit,
@@ -256,38 +269,69 @@ private fun ProfileSheet(
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-            Box(modifier = Modifier.fillMaxWidth().height(100.dp)) {
-                if (member.bannerUrl.isNullOrBlank()) {
-                    Box(
+            // Banner, then the avatar sitting half over its bottom edge.
+            Box(modifier = Modifier.fillMaxWidth().height(120.dp)) {
+                val stops = member.theme.stops.mapNotNull(HexColor::parse)
+                when {
+                    !member.bannerUrl.isNullOrBlank() -> AsyncImage(
+                        model = member.bannerUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+
+                    stops.size >= 2 -> Box(
+                        modifier = Modifier.fillMaxSize().background(
+                            Brush.linearGradient(stops.map { Color(it) }),
+                        ),
+                    )
+
+                    else -> Box(
                         modifier = Modifier.fillMaxSize().background(
                             Brush.horizontalGradient(
                                 listOf(ChatNookColors.Blurple, ChatNookColors.Pink),
                             ),
                         ),
                     )
-                } else {
-                    AsyncImage(
-                        model = member.bannerUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
                 }
             }
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.Bottom,
+                modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Avatar(
-                    url = member.avatarUrl,
-                    size = 64,
-                    accent = ChatNookColors.Blurple,
-                    fallbackIcon = Icons.Filled.Person,
-                    fallbackLabel = member.label,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-                Column(modifier = Modifier.weight(1f).padding(top = 16.dp)) {
+                Box {
+                    Avatar(
+                        url = member.avatarUrl,
+                        size = 76,
+                        accent = ChatNookColors.Blurple,
+                        fallbackIcon = Icons.Filled.Person,
+                        fallbackLabel = member.label,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    // A decoration is a transparent frame drawn over the avatar.
+                    member.avatarDecorationUrl?.takeIf { it.isNotBlank() }?.let { decoration ->
+                        AsyncImage(
+                            model = decoration,
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.size(92.dp),
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 2.dp, bottom = 2.dp)
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(3.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (online) ChatNookColors.Green else ChatNookColors.Outline,
+                            ),
+                    )
+                }
+                Column(modifier = Modifier.weight(1f).padding(top = 10.dp)) {
                     Text(
                         text = member.label,
                         style = MaterialTheme.typography.titleLarge,
@@ -299,6 +343,24 @@ private fun ProfileSheet(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (member.badges.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.padding(top = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            member.badges.forEach { badge ->
+                                Text(
+                                    text = badge,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = ChatNookColors.TextPrimary,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(ChatNookColors.DarkElevated)
+                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -306,28 +368,44 @@ private fun ProfileSheet(
                 Text(
                     text = status,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                 )
             }
 
-            if (member.badges.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    member.badges.forEach { badge ->
-                        Text(
-                            text = badge,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = ChatNookColors.TextPrimary,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(ChatNookColors.DarkElevated)
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
-                        )
-                    }
+            val facts = buildList {
+                if (member.joinedAt > 0) {
+                    add(
+                        stringResource(
+                            R.string.members_member_since,
+                            SimpleDateFormat("MMM yyyy", Locale.getDefault())
+                                .format(Date(member.joinedAt)),
+                        ),
+                    )
                 }
+                mutual?.let {
+                    add(pluralStringResource(R.plurals.members_mutual_servers, it.size, it.size))
+                }
+            }
+            Text(
+                text = if (online) {
+                    stringResource(R.string.members_online)
+                } else {
+                    stringResource(R.string.members_offline)
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = if (online) ChatNookColors.Green else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp),
+            )
+            if (facts.isNotEmpty()) {
+                Text(
+                    text = facts.joinToString("  ·  "),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .padding(horizontal = 20.dp)
+                        .testTag("member_facts"),
+                )
             }
 
             if (canManageRoles && assignableRoles.isNotEmpty() && !member.isOwner) {
@@ -400,16 +478,7 @@ private fun ProfileSheet(
             ) {
                 Text(stringResource(R.string.members_message))
             }
-            Text(
-                text = if (online) {
-                    stringResource(R.string.members_online)
-                } else {
-                    stringResource(R.string.members_offline)
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = if (online) ChatNookColors.Green else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 20.dp),
-            )
+
         }
     }
 }

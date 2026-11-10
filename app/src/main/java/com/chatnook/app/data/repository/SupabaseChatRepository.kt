@@ -345,6 +345,21 @@ class SupabaseChatRepository : ChatRepository {
         )
     }
 
+    override suspend fun getMutualGuilds(userId: String): List<Guild> {
+        val client = Supabase.clientOrNull() ?: return emptyList()
+        return client.postgrest
+            .rpc("mutual_guilds", buildJsonObject { put("other", userId) })
+            .decodeList<JsonObject>()
+            .map {
+                Guild(
+                    guildId = it.str("id").orEmpty(),
+                    name = it.str("name").orEmpty(),
+                    iconUrl = it.str("icon_url"),
+                    ownerId = null,
+                )
+            }
+    }
+
     override fun getGuildMuted(guildId: String): Flow<Boolean> = flow {
         val client = Supabase.clientOrNull() ?: return@flow
 
@@ -769,9 +784,9 @@ class SupabaseChatRepository : ChatRepository {
         suspend fun load(): List<Member> = client.from("guild_members")
             .select(
                 Columns.raw(
-                    "user_id,nickname," +
+                    "user_id,nickname,joined_at," +
                         "profile:profiles(id,username,display_name,avatar_url,banner_url," +
-                        "custom_status,badges)," +
+                        "custom_status,badges,theme,avatar_decoration_url,avatar_is_animated)," +
                         "member_roles(role:roles(id,name,color,position))," +
                         "guild:guilds(owner_id)",
                 ),
