@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.chatnook.app.data.Repositories
 import com.chatnook.app.data.Supabase
 import com.chatnook.app.data.media.prepareImage
+import com.chatnook.app.domain.model.AuditEntry
+import com.chatnook.app.domain.model.BannedUser
 import com.chatnook.app.domain.model.ChatChannel
 import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
@@ -319,6 +321,20 @@ class ChatViewModel(
     }
 
     /** Invite codes of the selected guild, newest first. */
+    /** Banned accounts, for the moderation screen. */
+    val bans: StateFlow<List<BannedUser>> = _selectedGuildId
+        .filterNotNull()
+        .distinctUntilChanged()
+        .flatMapLatest { repository.getBans(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Moderation history, newest first. */
+    val auditLog: StateFlow<List<AuditEntry>> = _selectedGuildId
+        .filterNotNull()
+        .distinctUntilChanged()
+        .flatMapLatest { repository.getAuditLog(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     val invites: StateFlow<List<Invite>> = _selectedGuildId
         .filterNotNull()
         .distinctUntilChanged()
@@ -467,6 +483,33 @@ class ChatViewModel(
             runCatching { repository.setMemberRoles(guildId, member.userId, roleIds) }
                 .onSuccess { _notice.value = "Roles updated for ${member.label}" }
                 .onFailure { _notice.value = "Update failed: ${it.friendly()}" }
+        }
+    }
+
+    fun kick(member: Member) {
+        val guildId = _selectedGuildId.value ?: return
+        viewModelScope.launch {
+            runCatching { repository.kickMember(guildId, member.userId) }
+                .onSuccess { _notice.value = "${member.label} was kicked" }
+                .onFailure { _notice.value = "Kick failed: ${it.friendly()}" }
+        }
+    }
+
+    fun ban(member: Member, reason: String?) {
+        val guildId = _selectedGuildId.value ?: return
+        viewModelScope.launch {
+            runCatching { repository.banMember(guildId, member.userId, reason) }
+                .onSuccess { _notice.value = "${member.label} was banned" }
+                .onFailure { _notice.value = "Ban failed: ${it.friendly()}" }
+        }
+    }
+
+    fun unban(user: BannedUser) {
+        val guildId = _selectedGuildId.value ?: return
+        viewModelScope.launch {
+            runCatching { repository.unbanMember(guildId, user.userId) }
+                .onSuccess { _notice.value = "${user.name} was unbanned" }
+                .onFailure { _notice.value = "Unban failed: ${it.friendly()}" }
         }
     }
 

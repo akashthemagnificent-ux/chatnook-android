@@ -1,5 +1,7 @@
 package com.chatnook.app.domain.repository
 
+import com.chatnook.app.domain.model.AuditEntry
+import com.chatnook.app.domain.model.BannedUser
 import com.chatnook.app.domain.model.ChatChannel
 import com.chatnook.app.domain.model.ChatMessage
 import com.chatnook.app.domain.model.CustomEmoji
@@ -129,6 +131,18 @@ interface ChatRepository {
 
     /** Replaces every role of one member in one call; owner only. */
     suspend fun setMemberRoles(guildId: String, userId: String, roleIds: List<String>)
+
+    /** Accounts banned from this server; only readable by members who may kick. */
+    fun getBans(guildId: String): Flow<List<BannedUser>>
+
+    /** The server's moderation history, newest first. */
+    fun getAuditLog(guildId: String): Flow<List<AuditEntry>>
+
+    suspend fun kickMember(guildId: String, userId: String)
+
+    suspend fun banMember(guildId: String, userId: String, reason: String?)
+
+    suspend fun unbanMember(guildId: String, userId: String)
 
     /** Guilds the caller and [userId] both belong to; empty for a stranger. */
     suspend fun getMutualGuilds(userId: String): List<Guild>

@@ -11,11 +11,12 @@
     <string name="auth_sign_up">Sign up</string>
     <string name="auth_sign_up_alt">Don\'t have an account? Sign up</string>
     <string name="auth_sign_in_alt">Already have an account? Sign in</string>
-    <string name="auth_anonymous">Continue anonymously</string>
+    <string name="auth_anonymous">Continue without an account</string>
     <string name="auth_magic_link">Send magic link</string>
     <string name="auth_magic_link_desc">We\'ll email you a sign-in link</string>
-    <string name="auth_anonymous_desc">Skip signup, join as a guest</string>
+    <string name="auth_anonymous_desc">This account lives only on this phone. Reinstalling the app or clearing its data loses it for good — use email to keep it.</string>
     <string name="auth_or">or</string>
+    <string name="auth_forgot">Forgot password?</string>
 
     <!-- Deep-link scheme/host for magic links; must match Supabase > Auth > URL Config -->
     <string name="supabase_oauth_scheme">chatnook</string>
@@ -216,4 +217,25 @@
     <string name="action_cancel">Cancel</string>
     <string name="action_save">Save</string>
     <string name="action_ok">OK</string>
+
+    <!-- Moderation -->
+    <string name="member_kick">Kick</string>
+    <string name="member_ban">Ban</string>
+    <string name="member_kick_title">Kick %1$s?</string>
+    <string name="member_kick_body">They lose access to this server. They can rejoin with a new invite.</string>
+    <string name="member_ban_title">Ban %1$s?</string>
+    <string name="member_ban_body">They lose access and cannot rejoin until you unban them.</string>
+    <string name="member_ban_reason">Reason (optional)</string>
+    <string name="moderation_title">Moderation</string>
+    <string name="moderation_open">Bans and recent activity</string>
+    <string name="moderation_bans">Banned</string>
+    <string name="moderation_activity">Recent activity</string>
+    <string name="moderation_unban">Unban</string>
+    <string name="moderation_no_bans">No one is banned.</string>
+    <string name="moderation_no_activity">Nothing has happened yet.</string>
+    <string name="moderation_kick">kicked</string>
+    <string name="moderation_ban">banned</string>
+    <string name="moderation_unban_action">unbanned</string>
+    <string name="moderation_entry">%1$s %2$s %3$s</string>
+    <string name="moderation_unknown">someone</string>
 </resources>

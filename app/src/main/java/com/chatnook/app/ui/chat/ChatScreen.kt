@@ -93,6 +93,7 @@ import coil3.compose.AsyncImage
 import com.chatnook.app.R
 import com.chatnook.app.data.push.ActiveChat
 import com.chatnook.app.domain.model.ChatMessage
+import com.chatnook.app.domain.model.MAX_MESSAGE_LENGTH
 import com.chatnook.app.domain.model.CustomEmoji
 import com.chatnook.app.domain.model.Reaction
 import com.chatnook.app.domain.model.TypingUser
@@ -733,6 +734,19 @@ private fun MessageInput(
         if (field.text != draft) field = TextFieldValue(draft, TextRange(draft.length))
     }
     var pickingEmoji by remember { mutableStateOf(false) }
+    // Only the last 200 characters of headroom need a counter.
+    val counter: (@Composable () -> Unit)? =
+        if (field.text.length > MAX_MESSAGE_LENGTH - 200) {
+            {
+                Text(
+                    text = "${field.text.length}/$MAX_MESSAGE_LENGTH",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            null
+        }
 
     Row(
         modifier = Modifier.fillMaxWidth().padding(8.dp),
@@ -757,11 +771,15 @@ private fun MessageInput(
         }
         OutlinedTextField(
             value = field,
-            onValueChange = {
-                field = it
-                onDraftChange(it.text)
+            onValueChange = { next ->
+                // Over the limit the keystroke is dropped, so a paste cannot overflow.
+                if (next.text.length <= MAX_MESSAGE_LENGTH) {
+                    field = next
+                    onDraftChange(next.text)
+                }
             },
             modifier = Modifier.weight(1f).testTag("chat_input"),
+            supportingText = counter,
             placeholder = {
                 Text(
                     stringResource(

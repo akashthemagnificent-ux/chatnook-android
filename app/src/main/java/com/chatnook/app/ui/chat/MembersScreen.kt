@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,7 +20,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -79,7 +85,9 @@ fun MembersScreen(
     val roles by viewModel.roles.collectAsStateWithLifecycle()
     val mutual by viewModel.mutualGuilds.collectAsStateWithLifecycle()
     val permissions by viewModel.permissions.collectAsStateWithLifecycle()
+    val me by viewModel.myProfile.collectAsStateWithLifecycle()
     val canManageRoles = permissions has PermissionBits.MANAGE_ROLES
+    val canKick = permissions has PermissionBits.KICK_MEMBERS
     var selected by remember { mutableStateOf<Member?>(null) }
     LaunchedEffect(selected?.userId) {
         selected?.let { viewModel.loadMutualGuilds(it.userId) }
@@ -141,7 +149,10 @@ fun MembersScreen(
             mutual = mutual[member.userId],
             assignableRoles = roles.filter { !it.isEveryone },
             canManageRoles = canManageRoles,
+            canModerate = canKick && member.userId != me?.userId,
             onSaveRoles = { ids -> viewModel.setMemberRoles(member, ids) },
+            onKick = { viewModel.kick(member); selected = null },
+            onBan = { reason -> viewModel.ban(member, reason); selected = null },
             onDismiss = { selected = null },
             onMessage = {
                 scope.launch {
@@ -264,7 +275,11 @@ private fun ProfileSheet(
     mutual: List<Guild>?,
     assignableRoles: List<GuildRole>,
     canManageRoles: Boolean,
+    /** Kick/ban controls: the caller may kick and the target is not the caller. */
+    canModerate: Boolean,
     onSaveRoles: (List<String>) -> Unit,
+    onKick: () -> Unit,
+    onBan: (String?) -> Unit,
     onDismiss: () -> Unit,
     onMessage: () -> Unit,
 ) {
@@ -480,6 +495,88 @@ private fun ProfileSheet(
                 Text(stringResource(R.string.members_message))
             }
 
+            if (canModerate && !member.isOwner) {
+                var confirmKick by remember { mutableStateOf(false) }
+                var confirmBan by remember { mutableStateOf(false) }
+                var reason by remember { mutableStateOf("") }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.padding(vertical = 12.dp),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = { confirmKick = true },
+                        modifier = Modifier.weight(1f).testTag("member_kick"),
+                    ) { Text(stringResource(R.string.member_kick)) }
+                    OutlinedButton(
+                        onClick = { confirmBan = true },
+                        modifier = Modifier.weight(1f).testTag("member_ban"),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
+                    ) { Text(stringResource(R.string.member_ban)) }
+                }
+
+                if (confirmKick) {
+                    AlertDialog(
+                        onDismissRequest = { confirmKick = false },
+                        title = { Text(stringResource(R.string.member_kick_title, member.label)) },
+                        text = { Text(stringResource(R.string.member_kick_body)) },
+                        confirmButton = {
+                            TextButton(onClick = { confirmKick = false; onKick() }) {
+                                Text(stringResource(R.string.member_kick))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { confirmKick = false }) {
+                                Text(stringResource(R.string.action_cancel))
+                            }
+                        },
+                    )
+                }
+
+                if (confirmBan) {
+                    AlertDialog(
+                        onDismissRequest = { confirmBan = false },
+                        title = { Text(stringResource(R.string.member_ban_title, member.label)) },
+                        text = {
+                            Column {
+                                Text(stringResource(R.string.member_ban_body))
+                                Spacer(Modifier.height(12.dp))
+                                OutlinedTextField(
+                                    value = reason,
+                                    onValueChange = { reason = it.take(200) },
+                                    label = { Text(stringResource(R.string.member_ban_reason)) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth().testTag("member_ban_reason"),
+                                )
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    confirmBan = false
+                                    onBan(reason.trim().ifBlank { null })
+                                },
+                            ) {
+                                Text(
+                                    stringResource(R.string.member_ban),
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { confirmBan = false }) {
+                                Text(stringResource(R.string.action_cancel))
+                            }
+                        },
+                    )
+                }
+            }
         }
     }
 }

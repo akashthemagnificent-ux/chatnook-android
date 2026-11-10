@@ -1,0 +1,57 @@
+name: Backup
+
+# The free plan has no automatic backups, so this is the only copy of the data that
+# survives a bad migration or an accidental delete. The archive is encrypted before
+# it is uploaded because artifacts of a public repository are readable by anyone;
+# the passphrase lives in the BACKUP_PASSPHRASE secret and in docs/BACKUP.md.
+on:
+  schedule:
+    - cron: '40 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the Postgres driver
+        run: pip install pg8000
+
+      - name: Dump the database and every stored file
+        id: dump
+        continue-on-error: true
+        env:
+          CHATNOOK_DB_PASSWORD: ${{ secrets.CHATNOOK_DB_PASSWORD }}
+        run: python3 tools/backup.py
+
+      - name: Encrypt the archive
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          cd build/backup
+          for f in chatnook-backup-*.tar.gz; do
+            openssl enc -aes-256-cbc -pbkdf2 -salt -in "$f" -out "$f.enc" -pass env:BACKUP_PASSPHRASE
+            rm "$f"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chatnook-backup-${{ github.run_id }}
+          path: build/backup/*.enc
+          retention-days: 90
+
+      # The archive is still uploaded when the plan is nearly full; the run turns red
+      # so the warning is not missed.
+      - name: Fail when the free plan is nearly full
+        if: steps.dump.outcome == 'failure'
+        run: |
+          echo "::error::the backup ran but the database or storage is over 80% full"
+          exit 1

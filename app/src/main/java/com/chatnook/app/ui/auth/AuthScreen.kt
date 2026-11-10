@@ -163,6 +163,15 @@ fun AuthScreen(viewModel: AuthViewModel, modifier: Modifier = Modifier) {
             }
         }
 
+        if (!isSignup) {
+            TextButton(onClick = { viewModel.resetPassword(ui.email) }) {
+                Text(
+                    text = stringResource(R.string.auth_forgot),
+                    color = Color.White.copy(alpha = 0.85f),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
         TextButton(onClick = { viewModel.selectMode(if (isSignup) AuthMode.Login else AuthMode.Signup) }) {
             Text(
                 text = stringResource(
@@ -177,26 +186,6 @@ fun AuthScreen(viewModel: AuthViewModel, modifier: Modifier = Modifier) {
         RowDivider()
 
         Spacer(Modifier.height(8.dp))
-        OutlinedButton(
-            onClick = viewModel::signInAnonymously,
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-            enabled = !ui.isLoading,
-            shape = RoundedCornerShape(8.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.auth_anonymous),
-                color = Color.White,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = stringResource(R.string.auth_anonymous_desc),
-            style = MaterialTheme.typography.bodySmall,
-            color = Color.White.copy(alpha = 0.7f),
-        )
-
-        Spacer(Modifier.height(16.dp))
         OutlinedButton(
             onClick = { viewModel.sendMagicLink(ui.email) },
             modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -214,6 +203,26 @@ fun AuthScreen(viewModel: AuthViewModel, modifier: Modifier = Modifier) {
             text = stringResource(R.string.auth_magic_link_desc),
             style = MaterialTheme.typography.bodySmall,
             color = Color.White.copy(alpha = 0.7f),
+        )
+
+        // Guest access stays available but is no longer the easy default: an
+        // anonymous account cannot be recovered once the app data is gone.
+        Spacer(Modifier.height(24.dp))
+        TextButton(
+            onClick = viewModel::signInAnonymously,
+            enabled = !ui.isLoading,
+            modifier = Modifier.testTag("auth_anonymous"),
+        ) {
+            Text(
+                text = stringResource(R.string.auth_anonymous),
+                color = Color.White.copy(alpha = 0.85f),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Text(
+            text = stringResource(R.string.auth_anonymous_desc),
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White.copy(alpha = 0.6f),
         )
     }
 }
