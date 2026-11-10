@@ -69,6 +69,23 @@ class ChatMessageTest {
         assertTrue(ChatMessage.fromJson(obj("""{"content":null}""")).isDeleted)
         assertFalse(ChatMessage.fromJson(obj("""{"type":"system"}""")).isDeleted)
     }
+
+    @Test
+    fun `a pending image is not a deleted message`() {
+        val pending = ChatMessage(
+            messageId = "m1",
+            channelId = "c1",
+            senderId = "u1",
+            content = "",
+            messageType = ChatMessage.MessageType.image,
+            createdAt = 0L,
+            localImageUri = "content://photo/1",
+            sendState = ChatMessage.SendState.Pending,
+        )
+
+        assertFalse(pending.isDeleted)
+        assertTrue(pending.copy(localImageUri = null).isDeleted)
+    }
 }
 
 class ProfileThemeTest {

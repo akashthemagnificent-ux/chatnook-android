@@ -75,7 +75,10 @@ data class ChatMessage(
 
     enum class SendState { Pending, Sent, Failed }
 
-    val isDeleted: Boolean get() = content.isEmpty() && attachments.isEmpty() && messageType != MessageType.system
+    // A pending image has neither text nor a server attachment yet; it is not deleted.
+    val isDeleted: Boolean
+        get() = content.isEmpty() && attachments.isEmpty() && localImageUri == null &&
+            messageType != MessageType.system
 
     companion object {
         fun fromJson(json: JsonObject): ChatMessage {

@@ -557,6 +557,11 @@ class SupabaseChatRepository : ChatRepository {
         val reactionEvents = channel.postgresChangeFlow<PostgresAction>("public") {
             table = "reactions"
         }
+        // Author name/avatar live on the embedded profile, so a profile edit has to
+        // repaint the messages already on screen.
+        val profileEvents = channel.postgresChangeFlow<PostgresAction.Update>("public") {
+            table = "profiles"
+        }
 
         // Realtime rows carry no embeds, so one Postgrest round trip per changed
         // message is what brings the author profile and reaction chips along.
@@ -583,6 +588,17 @@ class SupabaseChatRepository : ChatRepository {
                         } ?: return@collect
                         val id = row["message_id"]?.toString()?.trim('"') ?: return@collect
                         if (cache.containsKey(id)) refresh(id)
+                    }
+                }
+
+                // One page reload per profile edit, not one request per message.
+                // Started before the message collector, which never returns.
+                launch {
+                    profileEvents.collect {
+                        val fresh = loadOr("messages", emptyList()) { loadMessages(channelId) }
+                        if (fresh.isEmpty()) return@collect
+                        fresh.forEach { cache[it.messageId] = it }
+                        send(snapshot())
                     }
                 }
 
@@ -807,6 +823,12 @@ class SupabaseChatRepository : ChatRepository {
                 table = "member_roles"
                 filter("guild_id", FilterOperator.EQ, guildId)
             },
+            // Profiles carry the name, avatar, banner and decoration the roster renders.
+            // Unfiltered on purpose: one profile edit is rare, and the row a member
+            // cannot read never reaches them, so the server does the filtering.
+            channel.postgresChangeFlow<PostgresAction.Update>("public") {
+                table = "profiles"
+            },
         )
         channel.subscribe()
         try {
@@ -826,11 +848,13 @@ class SupabaseChatRepository : ChatRepository {
 
         emit(loadOr("dms", emptyList()) { load() })
 
-        // A new DM channel or a new message changes the order and the preview.
+        // A new DM channel or a new message changes the order and the preview; a profile
+        // edit changes the name and avatar shown in the row.
         val channel = client.channel("dms-${userId()}")
         val events = merge(
             channel.postgresChangeFlow<PostgresAction.Insert>("public") { table = "messages" },
             channel.postgresChangeFlow<PostgresAction.Insert>("public") { table = "channels" },
+            channel.postgresChangeFlow<PostgresAction.Update>("public") { table = "profiles" },
         )
         channel.subscribe()
         try {

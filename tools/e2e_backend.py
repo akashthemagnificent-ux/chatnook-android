@@ -130,6 +130,69 @@ def signup():
     return body["access_token"], body["user"]["id"]
 
 
+def realtime_sees_profile_update(client, uid):
+    """Joins Realtime as [client] and waits for a profiles UPDATE for [uid].
+
+    This is the server half of "a profile edit shows up for everyone else": the row
+    must reach a second authenticated socket, not just the writer's own screen.
+    """
+    import asyncio
+
+    import websockets
+
+    ref = URL.split("//", 1)[1].split(".", 1)[0]
+    ws_url = f"wss://{ref}.supabase.co/realtime/v1/websocket?apikey={ANON}&vsn=1.0.0"
+
+    async def go():
+        async with websockets.connect(ws_url, ping_interval=None) as ws:
+            await ws.send(json.dumps({
+                "topic": "realtime:e2e-profiles",
+                "event": "phx_join",
+                "payload": {
+                    "config": {
+                        "broadcast": {"self": False, "ack": False},
+                        "presence": {"key": uid},
+                        "postgres_changes": [{
+                            "event": "UPDATE",
+                            "schema": "public",
+                            "table": "profiles",
+                            "filter": f"id=eq.{uid}",
+                        }],
+                    },
+                    "access_token": client.token,
+                },
+                "ref": "1",
+                "join_ref": "1",
+            }))
+
+            joined = False
+            for _ in range(10):
+                reply = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
+                if reply.get("event") == "phx_reply":
+                    joined = reply.get("payload", {}).get("status") == "ok"
+                    break
+            if not joined:
+                return False, "join refused"
+
+            client.patch(f"/rest/v1/profiles?id=eq.{uid}", {"display_name": "Realtime Renamed"})
+            for _ in range(10):
+                event = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
+                if event.get("event") == "postgres_changes":
+                    data = event.get("payload", {}).get("data", {})
+                    record = data.get("record") or data.get("new") or {}
+                    return record.get("display_name") == "Realtime Renamed", data
+            return False, "no event after the update"
+
+    # A socket test over the public internet can lose one race with a slow event;
+    # a second attempt tells a real regression from a bad minute.
+    for attempt in range(2):
+        try:
+            return asyncio.run(go())
+        except Exception as e:  # timeout, socket or protocol failure
+            if attempt == 1:
+                return False, repr(e)
+
+
 def cleanup(user_ids, guild_ids):
     if not admin:
         print("  (no service role key: skipping cleanup)")
@@ -196,24 +259,32 @@ def run(created_users, created_guilds):
         check("author embed resolves", (rows[0].get("author") or {}).get("id") == a_uid, rows[0])
         check("reactions embed is a list", isinstance(rows[0].get("reactions"), list), rows[0])
 
-    print("keyset pagination")
-    batch = [{"channel_id": cid, "author_id": a_uid, "content": f"page {i}"} for i in range(60)]
-    a.post("/rest/v1/messages", batch)
-    st, page = a.get(f"/rest/v1/messages?select={MESSAGE_COLUMNS}&channel_id=eq.{cid}"
-                     "&order=created_at.desc,id.desc&limit=50")
-    check("first page full", st == 200 and len(page) == 50, f"{st} {len(page) if st == 200 else page}")
-    if st == 200 and page:
-        oldest = page[-1]
-        iso, mid = oldest["created_at"], oldest["id"]
-        st2, older = a.get(
-            f"/rest/v1/messages?select={MESSAGE_COLUMNS}&channel_id=eq.{cid}"
-            f"&or=(created_at.lt.{urllib.parse.quote(iso)},and(created_at.eq.{urllib.parse.quote(iso)},id.lt.{mid}))"
-            "&order=created_at.desc,id.desc&limit=50")
-        check("older page query", st2 == 200, f"{st2} {str(older)[:200]}")
-        if st2 == 200:
-            ids = {m["id"] for m in page} & {m["id"] for m in older}
-            check("pages do not overlap", not ids, ids)
-            check("61 messages split 50+11", len(older) == 11, len(older))
+    print("keyset pagination (500 messages)")
+    batch = [{"channel_id": cid, "author_id": a_uid, "content": f"page {i}"} for i in range(500)]
+    st, _ = a.post("/rest/v1/messages", batch)
+    check("seed 500 messages", st == 201, st)
+
+    seen, cursor, pages = [], None, 0
+    while True:
+        q = (f"/rest/v1/messages?select=id,created_at&channel_id=eq.{cid}"
+             "&order=created_at.desc,id.desc&limit=50")
+        if cursor:
+            iso, mid = cursor
+            q += ("&or=(created_at.lt." + urllib.parse.quote(iso)
+                  + ",and(created_at.eq." + urllib.parse.quote(iso) + ",id.lt." + mid + "))")
+        st, page = a.get(q)
+        if st != 200 or not page:
+            break
+        seen += [m["id"] for m in page]
+        pages += 1
+        if len(page) < 50:
+            break
+        cursor = (page[-1]["created_at"], page[-1]["id"])
+
+    check("paging walks to the first message", st == 200, f"{st} {str(page)[:200]}")
+    check("every message appears exactly once",
+          len(seen) == len(set(seen)) == 501, f"{len(seen)} rows, {len(set(seen))} unique")
+    check("11 pages of at most 50", pages == 11 and len(seen) > 450, pages)
 
     b_tok, b_uid = signup()
     created_users.append(b_uid)
@@ -298,6 +369,9 @@ def run(created_users, created_guilds):
            {"channel_id": cid, "author_id": a_uid, "content": f"hey @{b_name} look"})
     st, counts = b.rpc("channel_unread_counts", {"p_guild_id": gid, "p_mention": b_name})
     check("mention counted", st == 200 and counts and counts[0]["mentions"] == 1, f"{st} {counts}")
+    st, counts = a.rpc("channel_unread_counts", {"p_guild_id": gid, "p_mention": b_name})
+    check("mention is not counted for another member",
+          st == 200 and counts and counts[0]["mentions"] == 0, f"{st} {counts}")
 
     st, last = b.get(f"/rest/v1/messages?select=id,created_at&channel_id=eq.{cid}"
                      "&order=created_at.desc&limit=1")
@@ -331,6 +405,7 @@ def run(created_users, created_guilds):
         check("owner is identifiable", len(owners) == 1 and owners[0]["user_id"] == a_uid, owners)
 
     print("DMs")
+    third, third_uid = None, None
     st, dm = a.rpc("find_or_create_dm", {"other_user": b_uid})
     check("find_or_create_dm rpc", st == 200 and isinstance(dm, str), f"{st} {dm}")
     if st == 200:
@@ -354,6 +429,37 @@ def run(created_users, created_guilds):
         created_users.append(c_uid)
         check("dm hidden from third party",
               Api(c_tok).get(f"/rest/v1/channels?select=id&id=eq.{dm}")[1] == [])
+        check("dm messages hidden from third party",
+              Api(c_tok).get(f"/rest/v1/messages?select=id&channel_id=eq.{dm}")[1] == [])
+        third = Api(c_tok)
+        third_uid = c_uid
+
+    print("read state + push fan-out")
+    if third:
+        st, code = a.rpc("create_invite", {"gid": gid})
+        st2, joined = third.rpc("join_guild", {"invite_code": code})
+        check("third member joins the server", st2 == 200 and joined == gid, f"{st} {st2}")
+
+        # b reads up to and including this message; c never opens the channel.
+        a.post("/rest/v1/messages",
+               {"channel_id": cid, "author_id": a_uid, "content": "fan out"})
+        st, newest = a.get(f"/rest/v1/messages?select=id,created_at&channel_id=eq.{cid}"
+                           "&order=created_at.desc&limit=1")
+        if st == 200 and newest:
+            msg = newest[0]
+            b.patch(f"/rest/v1/read_states?user_id=eq.{b_uid}&channel_id=eq.{cid}",
+                    {"last_read_message_id": msg["id"], "last_read_at": msg["created_at"]})
+            # The push function drops recipients whose last_read_at >= the message time.
+            if admin:
+                st, states = admin.get("/rest/v1/read_states?select=user_id,last_read_at"
+                                       f"&channel_id=eq.{cid}")
+                caught_up = {r["user_id"] for r in states
+                             if r["last_read_at"] >= msg["created_at"]}
+                check("only the reader is suppressed", caught_up == {b_uid}, f"{st} {caught_up}")
+                check("the other member is still a push target", third_uid not in caught_up,
+                      third_uid)
+            else:
+                print("  (no service role key: skipping the fan-out check)")
 
     print("server management")
     a.patch(f"/rest/v1/guilds?id=eq.{gid}", {"name": "Renamed"})
@@ -439,6 +545,8 @@ def run(created_users, created_guilds):
     check("create_role rpc", st == 200 and isinstance(rid, str), f"{st} {rid}")
     st, _ = b.rpc("create_role", {"gid": gid, "p_name": "Nope", "p_permissions": 4095})
     check("member cannot create roles", st >= 400, st)
+    st, _ = b.rpc("set_member_roles", {"gid": gid, "member_id": a_uid, "role_ids": []})
+    check("member cannot assign roles", st >= 400, st)
 
     if st == 200 or isinstance(rid, str):
         st, _ = a.rpc("update_role", {"p_role_id": rid, "p_name": "Mod",
@@ -451,12 +559,30 @@ def run(created_users, created_guilds):
         check("assigned role grants its bits", st == 200 and bits == (everyone_bits | 8 | 16),
               f"{st} {bits}")
 
-        st, _ = b.rpc("set_member_roles", {"gid": gid, "member_id": a_uid, "role_ids": []})
-        check("member cannot assign roles", st >= 400, st)
+        # MANAGE_CHANNELS is bit 3: the grant has to reach the channel policy, not just
+        # the permission number the client displays.
+        st, made = b.post("/rest/v1/channels",
+                          {"guild_id": gid, "name": "mod-ops", "type": "text", "position": 7},
+                          prefer="return=representation")
+        check("moderator can create a channel", st == 201 and bool(made), f"{st} {made}")
+        if st == 201 and made:
+            a.delete(f"/rest/v1/channels?id=eq.{made[0]['id']}")
+
+        # MANAGE_ROLES is not a path to ADMINISTRATOR: no self-edit, no minting bits.
+        st, _ = b.rpc("set_member_roles", {"gid": gid, "member_id": b_uid, "role_ids": [rid]})
+        check("moderator cannot change their own roles", st >= 400, st)
+        st, _ = b.rpc("create_role", {"gid": gid, "p_name": "Sneaky", "p_permissions": 128})
+        check("moderator cannot grant a permission they lack", st >= 400, st)
 
         st, rows = a.get(f"/rest/v1/member_roles?select=role_id&guild_id=eq.{gid}&user_id=eq.{b_uid}")
         check("assignment persisted", st == 200 and [r["role_id"] for r in rows] == [rid],
               f"{st} {rows}")
+
+        # Same action, role taken away: the policy must refuse it again.
+        st, _ = a.rpc("set_member_roles", {"gid": gid, "member_id": b_uid, "role_ids": []})
+        st2, _ = b.post("/rest/v1/channels",
+                        {"guild_id": gid, "name": "nope-again", "type": "text", "position": 8})
+        check("revoked moderator is refused", st2 == 403, f"{st} {st2}")
 
         st, _ = a.rpc("set_member_roles",
                       {"gid": gid, "member_id": b_uid, "role_ids": [everyone_id]})
@@ -484,6 +610,10 @@ def run(created_users, created_guilds):
     st, rows = a.get("/rest/v1/profiles?select=theme,avatar_decoration_url,avatar_is_animated"
                      f"&id=eq.{b_uid}")
     check("card cosmetics are readable", st == 200 and len(rows) == 1, f"{st} {rows}")
+
+    print("realtime")
+    ok, detail = realtime_sees_profile_update(b, b_uid)
+    check("profile update reaches a second client", ok, detail)
 
     print("server delete")
     b.delete(f"/rest/v1/guilds?id=eq.{gid}")
