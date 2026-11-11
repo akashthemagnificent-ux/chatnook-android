@@ -16,6 +16,7 @@ import com.chatnook.app.data.settings.AppSettings
 import com.chatnook.app.data.push.Notifications
 import com.chatnook.app.data.push.PendingChat
 import com.chatnook.app.ui.ChatNookApp
+import com.chatnook.app.ui.auth.PendingPasswordReset
 import io.github.jan.supabase.auth.handleDeeplinks
 
 class MainActivity : ComponentActivity() {
@@ -34,6 +35,7 @@ class MainActivity : ComponentActivity() {
         Notifications.ensureChannel(this)
         askForNotificationsOnce()
         // Magic-link / recovery links land here as chatnook://auth?code=...
+        notePasswordRecovery(intent)
         Supabase.clientOrNull()?.handleDeeplinks(intent)
         routeFrom(intent)
         setContent { ChatNookApp() }
@@ -42,8 +44,19 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        notePasswordRecovery(intent)
         Supabase.clientOrNull()?.handleDeeplinks(intent)
         routeFrom(intent)
+    }
+
+    /** The reset link carries `type=recovery`; the app asks for a new password afterwards. */
+    private fun notePasswordRecovery(intent: Intent?) {
+        val data = intent?.data ?: return
+        if (data.scheme == Supabase.AUTH_SCHEME && data.host == Supabase.AUTH_HOST &&
+            data.getQueryParameter("type") == "recovery"
+        ) {
+            PendingPasswordReset.request()
+        }
     }
 
     /** A tapped push carries the channel to open; the UI navigates once it is ready. */
