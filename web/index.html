@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" class="theme-dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0d10" />
+    <meta name="color-scheme" content="dark light" />
+    <title>ChatNook</title>
+    <!-- Apply the stored theme + accent before first paint so the app never flashes (spec §1.7). -->
+    <script>
+      ;(() => {
+        try {
+          var root = document.documentElement
+          var stored = localStorage.getItem('chatnook.theme')
+          var prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches
+          var dark = stored === 'dark' ? true : stored === 'light' ? false : !prefersLight
+          root.classList.toggle('theme-dark', dark)
+          root.classList.toggle('theme-light', !dark)
+          root.style.colorScheme = dark ? 'dark' : 'light'
+          try {
+            var ui = JSON.parse(localStorage.getItem('chatnook.ui') || '{}')
+            var acc = ui && ui.state && ui.state.accent
+            if (acc && acc !== 'coral') root.setAttribute('data-accent', acc)
+          } catch (e) {}
+        } catch (e) {
+          /* storage blocked: the dark default is already on <html> */
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
